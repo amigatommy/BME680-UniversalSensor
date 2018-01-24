@@ -26,10 +26,11 @@ RFMxx::RFMxx(byte mosi, byte miso, byte sck, byte ss, bool soft_spi) {
   }
 }
 
-bool RFMxx::Begin(bool isPrimary) {
+bool RFMxx::Begin() {
   // No radio found until now
   m_radioType = RFMxx::None;
-
+  return false;
+  
   if (!m_soft_spi)  
   {
     SPI.begin();

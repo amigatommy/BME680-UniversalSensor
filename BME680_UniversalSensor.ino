@@ -132,8 +132,8 @@
 /***********************************************************************************************************************/
 /* header files                                                                                                        */
 /***********************************************************************************************************************/
-#include "bsec_integration.h"
 #include <Wire.h>
+#include "bsec_integration.h"
 #include "UniversalSensor.h"
 
 #if HAS_RFM69
@@ -626,7 +626,7 @@ void setup()
       
       if (OLED)
       {
-        display.begin(SSD1306_SWITCHCAPVCC, OLED_ADR); // initialize VCC state, I2C addr 0x3C / 0x3D
+        display.begin(SSD1306_SWITCHCAPVCC, OLED_I2C_ADR); // initialize VCC state, I2C addr 0x3C / 0x3D
         display.setTextSize(2);
         display.setTextColor(WHITE);
         display.setCursor(5,4);

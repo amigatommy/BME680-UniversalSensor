@@ -16,7 +16,7 @@ public:
   RFMxx(byte mosi=255, byte miso=255, byte sck=255, byte ss=255, bool soft_spi=false);
   byte ToggleMode;
   uint16_t ToggleInterval;
-  bool Begin(bool isPrimary = false);
+  bool Begin();
   bool IsConnected();
   bool PayloadIsReady();
   void GetPayload(byte *data);

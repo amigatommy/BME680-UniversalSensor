@@ -376,16 +376,21 @@ void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy, float temp
     if (BH1750) 
     {
       lux = bh1750.readLightLevel();
-      /* display dimm, if lightlevel < 10lux */
-      if (lux < 10)
-      {
-        display.dim(true);
-      }
-      else
-      {
-        display.ssd1306_command(SSD1306_SETCONTRAST);
-        display.ssd1306_command(0x80);
-      }
+      #if HAS_OLED
+        if (OLED)
+        {
+          /* display dimm, if lightlevel < 10lux */
+          if (lux < 10)
+          {
+            display.dim(true);
+          }
+          else
+          {
+            display.ssd1306_command(SSD1306_SETCONTRAST);
+            display.ssd1306_command(0x80);
+          }
+        }
+      #endif
     }
     else
     {
@@ -664,6 +669,7 @@ void setup()
       if (rfm.Begin())
       {
         RFM69 = true; //RFM69 is present
+        loop_counter = loop_count_lim; //to send data at startup
         #if HAS_OLED
           if (OLED)
           {
@@ -763,8 +769,7 @@ void setup()
           display.display();
         }
       #endif
-      blink(LEDpin, 6, 500);
-      return;
+      return; //jump to main loop
     }
     else if (ret.bsec_status)
     {
@@ -778,8 +783,7 @@ void setup()
           display.display();
         }
       #endif
-      blink(LEDpin, 6, 500);
-      return;
+      return; //jump to main loop
     }
     
     Serial.println("done");
@@ -828,27 +832,19 @@ void setup()
       }
     #endif
 
+    blink(LEDpin, 3, 250); //setup success
+    
     Serial.println("Ready, start measuring ...");
     Serial.println("");
-    if (OLED)
-    {
-      display.print("Starte Messungen ...");
-      display.display();
-    }
-    blink(LEDpin, 3, 250); //setup success
-        
     #if HAS_OLED
       if (OLED)
       {
+        display.print("Starte Messungen ...");
+        display.display();
         sleep(5000); //time to read display messages
         display.clearDisplay();
         display.display();
       }
-    #endif
-    
-    #if HAS_RFM69
-      if (RFM69)
-        loop_counter = loop_count_lim; //to send data at startup
     #endif
     
     /* todo ... */
@@ -860,7 +856,12 @@ void setup()
 /***********************************************************************************************************************/
 void loop()
 {
-  //Nothing to do here
+  //if an error occured in setup
+  do
+  {
+    blink(LEDpin, 10, 250); //setup not successful
+  } 
+  while(0);
 }
 
 /*! @}*/

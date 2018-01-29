@@ -29,7 +29,6 @@ RFMxx::RFMxx(byte mosi, byte miso, byte sck, byte ss, bool soft_spi) {
 bool RFMxx::Begin() {
   // No radio found until now
   m_radioType = RFMxx::None;
-  return false;
   
   if (!m_soft_spi)  
   {
@@ -55,9 +54,11 @@ bool RFMxx::Begin() {
   
   // Is there a RFM69 ?
   WriteReg(REG_PAYLOADLENGTH, 0xA);
-  if (ReadReg(REG_PAYLOADLENGTH) == 0xA) {
+  if (ReadReg(REG_PAYLOADLENGTH) == 0xA)
+  {
     WriteReg(REG_PAYLOADLENGTH, 0x40);
-    if (ReadReg(REG_PAYLOADLENGTH) == 0x40) {
+    if (ReadReg(REG_PAYLOADLENGTH) == 0x40)
+    {
       m_radioType = RFMxx::RFM69CW;
     }
   }
@@ -66,6 +67,7 @@ bool RFMxx::Begin() {
     EnableReceiver(false);
     return true;
   }
+  return false;
 }
 
 void RFMxx::SetDebugMode(boolean mode) {

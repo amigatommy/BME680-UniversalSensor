@@ -44,10 +44,6 @@
 AS_BH1750::AS_BH1750() {
   _address = BH1750_DEFAULT_I2CADDR;
   _hardwareMode = 255;
-#if BH1750_DEBUG == 1
-  Serial.print("BH1750: Teste auf 0x");
-  Serial.println(BH1750_DEFAULT_I2CADDR, HEX);
-#endif
 }
 
 /**
@@ -76,22 +72,24 @@ AS_BH1750::AS_BH1750() {
  */
 bool AS_BH1750::begin(sensors_resolution_t mode, bool autoPowerDown) {
 #if BH1750_DEBUG == 1
-  Serial.print("  sensors_resolution_mode (virtual): ");
+  Serial.print("sensors_resolution_mode (virtual): ");
   Serial.println(mode, DEC);
 #endif
   _virtualMode = mode;
   _autoPowerDown = autoPowerDown;
   
-  Wire.begin();
-
+  #ifndef __STM32F1__ //second call of Wire.begin cause STM to hang 
+    Wire.begin();
+  #endif
+    
   /* Automatische Erkennung auf primaerer/sekundaerer I2C Adresse */
   #if BH1750_DEBUG == 1
-    Serial.println("BH1750: init on standard I2C adress ...");
+    Serial.println("BH1750 init on standard I2C adress ...");
   #endif
   if(!isPresent()) {                  //Wenn sich kein Sensor auf der Standardadresse meldet,
     _address = BH1750_SECOND_I2CADDR;
     #if BH1750_DEBUG == 1
-      Serial.print("BH1750: not found on 0x");
+      Serial.print("BH1750 not found on 0x");
       Serial.print(BH1750_DEFAULT_I2CADDR, HEX);
       Serial.print(", try 0x");
       Serial.print(BH1750_SECOND_I2CADDR, HEX);
@@ -104,7 +102,7 @@ bool AS_BH1750::begin(sensors_resolution_t mode, bool autoPowerDown) {
     }
   }
   #if BH1750_DEBUG == 1
-    Serial.println("BH1750: success !");
+    Serial.println("BH1750 success !");
   #endif
   
   defineMTReg(BH1750_MTREG_DEFAULT); // eigentlich normalerweise unnötig, da standard
@@ -130,7 +128,7 @@ bool AS_BH1750::begin(sensors_resolution_t mode, bool autoPowerDown) {
   }
 
 #if BH1750_DEBUG == 1
-  Serial.print("hardware mode: ");
+  Serial.print("BH1750 hardware mode: ");
   Serial.println(_hardwareMode, DEC);
 #endif
 
@@ -141,7 +139,7 @@ bool AS_BH1750::begin(sensors_resolution_t mode, bool autoPowerDown) {
   // Versuchen, den gewählten Hardwaremodus zu aktivieren
   if(selectResolutionMode(_hardwareMode)){
 #if BH1750_DEBUG == 1
-    Serial.print("hardware mode defined successfully");
+    Serial.print("BH1750 hardware mode defined successfully ");
     Serial.println(_hardwareMode, DEC);
 #endif
     return true;
@@ -149,7 +147,7 @@ bool AS_BH1750::begin(sensors_resolution_t mode, bool autoPowerDown) {
 
   // Initialisierung fehlgeschlagen
 #if BH1750_DEBUG == 1
-  Serial.print("failure to aktivate hardware mode ");
+  Serial.print("BH1750 failed to aktivate hardware mode ");
   Serial.println(_hardwareMode, DEC);
 #endif
   _hardwareMode = 255;
@@ -189,7 +187,7 @@ bool AS_BH1750::isPresent() {
 void AS_BH1750::powerOn() {
   if(!isInitialized()) {
 #if BH1750_DEBUG == 1
-    Serial.println("sensor not initialized");
+    Serial.println("BH1750 sensor not initialized");
 #endif
     return;
   }
@@ -208,7 +206,7 @@ void AS_BH1750::powerOn() {
 void AS_BH1750::powerDown() {
   if(!isInitialized()) {
 #if BH1750_DEBUG == 1
-    Serial.println("sensor not initialized");
+    Serial.println("BH1750 sensor not initialized");
 #endif
     return;
   }
@@ -228,14 +226,14 @@ void AS_BH1750::powerDown() {
  */
 bool AS_BH1750::selectResolutionMode(uint8_t mode, DelayFuncPtr fDelayPtr) {
 #if BH1750_DEBUG == 1
-    Serial.print("selectResolutionMode: ");
+    Serial.print("BH1750 selectResolutionMode: ");
     Serial.println(mode, DEC);
 #endif
   if(!isInitialized()) {
-    return false;
 #if BH1750_DEBUG == 1
-    Serial.println("sensor not initialized");
+    Serial.println("BH1750 sensor not initialized");
 #endif
+    return false;
   }
 
   _hardwareMode=mode;
@@ -260,7 +258,7 @@ bool AS_BH1750::selectResolutionMode(uint8_t mode, DelayFuncPtr fDelayPtr) {
   default:
     // Invalid measurement mode
 #if BH1750_DEBUG == 1
-    Serial.println("Invalid measurement mode");
+    Serial.println("BH1750 Invalid measurement mode");
 #endif
     break;
   }
@@ -276,13 +274,13 @@ bool AS_BH1750::selectResolutionMode(uint8_t mode, DelayFuncPtr fDelayPtr) {
  */
 float AS_BH1750::readLightLevel(DelayFuncPtr fDelayPtr) {
 #if BH1750_DEBUG == 1
-    Serial.print("call: readLightLevel. virtualMode: ");
+    Serial.print("BH1750 call: readLightLevel. virtualMode: ");
     Serial.println(_virtualMode, DEC);
 #endif
 
   if(!isInitialized()) {
 #if BH1750_DEBUG == 1
-    Serial.println("sensor not initialized");
+    Serial.println("BH1750 sensor not initialized");
 #endif
     return -1;
   }
@@ -307,12 +305,12 @@ float AS_BH1750::readLightLevel(DelayFuncPtr fDelayPtr) {
     fDelayPtr(16); // Lesezeit in LowResMode
     uint16_t level = readRawLevel();
 #if BH1750_DEBUG == 1
-    Serial.print("AutoHighMode: check level read: ");
+    Serial.print("BH1750 AutoHighMode: check level read: ");
     Serial.println(level, DEC);
 #endif
     if(level<10) {
 #if BH1750_DEBUG == 1
-    Serial.println("level 0: dark");
+    Serial.println("BH1750 level 0: dark");
 #endif    
       // Dunkel, Empfindlichkeit auf Maximum. 
       // Der Wert ist zufällig. Ab ca. 16000 wäre diese Vorgehnsweise möglich.
@@ -381,15 +379,18 @@ uint16_t AS_BH1750::readRawLevel(void) {
   level <<= 8;
   level |= Wire.receive();
 #endif
+
+#ifndef __STM32F1__ //returnvalue on STM32 I2C lib is 3 = nack !  
   if(Wire.endTransmission()!=0) {
-#if BH1750_DEBUG == 1
-    Serial.println("I2C read error");
-#endif
+    #if BH1750_DEBUG == 1
+      Serial.println("BH1750 I2C read error");
+    #endif
     return 65535; // Error marker
   }
+#endif
 
 #if BH1750_DEBUG == 1
-  Serial.print("Raw light level: ");
+  Serial.print("BH1750 Raw light level: ");
   Serial.println(level);
 #endif
 

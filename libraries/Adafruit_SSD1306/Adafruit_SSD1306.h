@@ -54,7 +54,8 @@ All text above, and the splash screen must be included in any redistribution
 #define WHITE 1
 #define INVERSE 2
 
-#define SSD1306_I2C_ADDRESS   0x3C  // 011110+SA0+RW - 0x3C or 0x3D
+#define SSD1306_I2C_ADDRESS       0x3C // autodetect i2c address 0x3C or 0x3D
+#define SSD1306_SEC_I2C_ADDRESS   0x3D
 // Address for 128x32 is 0x3C
 // Address for 128x64 is 0x3D (default) or 0x3C (if SA0 is grounded)
 
@@ -156,7 +157,9 @@ class Adafruit_SSD1306 : public Adafruit_GFX {
   Adafruit_SSD1306(int8_t DC, int8_t RST, int8_t CS);
   Adafruit_SSD1306(int8_t RST = -1);
 
-  void begin(uint8_t switchvcc = SSD1306_SWITCHCAPVCC, uint8_t i2caddr = SSD1306_I2C_ADDRESS, bool reset=true);
+  bool begin(uint8_t switchvcc = SSD1306_SWITCHCAPVCC, bool reset=true);
+  //void begin(uint8_t switchvcc = SSD1306_SWITCHCAPVCC, uint8_t i2caddr = SSD1306_I2C_ADDRESS, bool reset=true);
+  
   void ssd1306_command(uint8_t c);
 
   void clearDisplay(void);

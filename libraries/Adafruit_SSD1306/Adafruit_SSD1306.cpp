@@ -26,7 +26,7 @@ All text above, and the splash screen below must be included in any redistributi
  #define pgm_read_byte(addr) (*(const unsigned char *)(addr))
 #endif
 
-#if !defined(__ARM_ARCH) && !defined(ENERGIA) && !defined(ESP8266) && !defined(ESP32) && !defined(__arc__)
+#if !defined(__ARM_ARCH) && !defined(ENERGIA) && !defined(ESP8266) && !defined(ESP32) && !defined(__arc__) && !defined(__STM32F1__)
  #include <util/delay.h>
 #endif
 
@@ -167,10 +167,9 @@ Adafruit_GFX(SSD1306_LCDWIDTH, SSD1306_LCDHEIGHT) {
   rst = reset;
 }
 
+bool Adafruit_SSD1306::begin(uint8_t vccstate, bool reset) {
 
-void Adafruit_SSD1306::begin(uint8_t vccstate, uint8_t i2caddr, bool reset) {
   _vccstate = vccstate;
-  _i2caddr = i2caddr;
 
   // set pin directions
   if (sid != -1){
@@ -205,13 +204,47 @@ void Adafruit_SSD1306::begin(uint8_t vccstate, uint8_t i2caddr, bool reset) {
   else
   {
     // I2C Init
-    Wire.begin();
-#ifdef __SAM3X8E__
-    // Force 400 KHz I2C, rawr! (Uses pins 20, 21 for SDA, SCL)
-    TWI1->TWI_CWGR = 0;
-    TWI1->TWI_CWGR = ((VARIANT_MCK / (2 * 400000)) - 4) * 0x101;
-#endif
+    #ifndef __STM32F1__ //second call of Wire.begin cause STM to hang 
+      Wire.begin();
+      #ifdef __SAM3X8E__
+        // Force 400 KHz I2C, rawr! (Uses pins 20, 21 for SDA, SCL)
+        TWI1->TWI_CWGR = 0;
+        TWI1->TWI_CWGR = ((VARIANT_MCK / (2 * 400000)) - 4) * 0x101;
+      #else
+        Wire.setClock(400000);
+      #endif
+    #endif
+    
+    //autodetect I2C address
+    Serial.print("OLED init ... ");
+    bool oled = false;
+    Wire.beginTransmission(SSD1306_I2C_ADDRESS); //first try primary adress
+    if (Wire.endTransmission() == 0)
+    {
+      _i2caddr = SSD1306_I2C_ADDRESS;
+      oled = true;
+      Serial.print("found on 0x");
+      Serial.println(_i2caddr, HEX);
+    }
+    else
+    {
+      Wire.beginTransmission(SSD1306_SEC_I2C_ADDRESS); //then try secondary adress
+      if (Wire.endTransmission() == 0)
+      {
+        _i2caddr = SSD1306_SEC_I2C_ADDRESS;
+        oled = true;
+        Serial.print("found on 0x");
+        Serial.println(_i2caddr, HEX);
+      }
+    }
+    if (!oled) {
+      Serial.println("not found");
+      Serial.println();
+      return false;
+    }
+    Serial.println();
   }
+     
   if ((reset) && (rst >= 0)) {
     // Setup reset pin direction (used by both SPI and I2C)
     pinMode(rst, OUTPUT);
@@ -287,6 +320,8 @@ void Adafruit_SSD1306::begin(uint8_t vccstate, uint8_t i2caddr, bool reset) {
   ssd1306_command(SSD1306_DEACTIVATE_SCROLL);
 
   ssd1306_command(SSD1306_DISPLAYON);//--turn on oled panel
+
+  return true;
 }
 
 

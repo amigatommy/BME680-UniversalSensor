@@ -7,7 +7,7 @@ RFMxx::RFMxx(byte mosi, byte miso, byte sck, byte ss, bool soft_spi) {
   m_sck = sck;
   m_ss = ss;
   m_soft_spi = soft_spi;
-
+  
   m_debug = false;
   m_dataRate = 17241;
   m_frequency = 868300;
@@ -29,18 +29,28 @@ RFMxx::RFMxx(byte mosi, byte miso, byte sck, byte ss, bool soft_spi) {
 bool RFMxx::Begin() {
   // No radio found until now
   m_radioType = RFMxx::None;
-
+  
   if (!m_soft_spi)
   {
     SPI.begin();
-    SPI.setFrequency(400000); //SPI clock 400kHz (because of many crc errors with higher clock speeds)
+    #ifdef ESP8266    
+      SPI.setFrequency(400000); //SPI clock 400kHz (because of many crc errors with higher clock speeds)
+    #elif defined(__STM32F1__)
+      SPI.setClockDivider(SPI_CLOCK_DIV128); //72 / 128 = 562.5kHz SPI_1 speed
+    #endif    
+
     if (m_debug)
     {
       Serial.println("Hardware-SPI fuer RFM69 aktiviert");
-      Serial.print("NSS  an GPIO-Pin ");Serial.println(m_ss);
-      Serial.print("SCK  an GPIO-Pin 14");
-      Serial.print("MOSI an GPIO-Pin 13");
-      Serial.print("MISO an GPIO-Pin 12");
+      #ifdef ESP8266
+        Serial.print("NSS an GPIO-Pin ");Serial.println(m_ss);
+      #elif defined(__STM32F1__)
+        Serial.println("SPI_1 Takt: 562.50kHz");
+        Serial.print("NSS  an Pin PA");Serial.println(m_ss);
+        Serial.print("SCK  an Pin PA");Serial.println(m_sck);
+        Serial.print("MISO an Pin PA");Serial.println(m_miso);
+        Serial.print("MOSI an Pin PA");Serial.println(m_mosi);
+      #endif
     }
   }
   else
@@ -48,13 +58,20 @@ bool RFMxx::Begin() {
     if (m_debug)
     {
       Serial.println("Soft-SPI fuer RFM69 aktiviert");
-      Serial.print("NSS  an GPIO-Pin ");Serial.println(m_ss);
-      Serial.print("SCK  an GPIO-Pin ");Serial.println(m_sck);
-      Serial.print("MOSI an GPIO-Pin ");Serial.println(m_mosi);
-      Serial.print("MISO an GPIO-Pin ");Serial.println(m_miso);
+      #ifdef ESP8266
+        Serial.print("MOSI an GPIO-Pin ");Serial.println(m_mosi);
+        Serial.print("MISO an GPIO-Pin ");Serial.println(m_miso);
+        Serial.print("SCK  an GPIO-Pin ");Serial.println(m_sck);
+        Serial.print("NSS  an GPIO-Pin ");Serial.println(m_ss);
+      #elif defined(__STM32F1__)
+        Serial.print("NSS  an Pin PA");Serial.println(m_ss);
+        Serial.print("SCK  an Pin PA");Serial.println(m_sck);
+        Serial.print("MISO an Pin PA");Serial.println(m_miso);
+        Serial.print("MOSI an Pin PA");Serial.println(m_mosi);
+      #endif
     }
   }
-
+  
   // Is there a RFM69 ?
   WriteReg(REG_PAYLOADLENGTH, 0xA);
   if (ReadReg(REG_PAYLOADLENGTH) == 0xA)
@@ -62,7 +79,7 @@ bool RFMxx::Begin() {
     WriteReg(REG_PAYLOADLENGTH, 0x40);
     if (ReadReg(REG_PAYLOADLENGTH) == 0x40)
     {
-      m_radioType = RFMxx::RFM69CW;
+      m_radioType = RFMxx::RFM69;
     }
   }
 
@@ -174,19 +191,19 @@ void RFMxx::InitializePCA301() {
      PCA      LGW
      0x94C5                 // RX: LNA Gain Max / Pin VDI / Bandwidth 67kHz  / VDI FAST / DRSSI -73dBm
               0x94a0        // RX: LNA Gain Max / Pin VDI / Bandwidth 134kHz / VDI FAST / DRSSI -103dBm
-
+     
      0xCA83                 // FIFO: INT Level 8 / Sync 2 Byte / FillStart=Sync / Sens low  /  Enabled
               0xCA12        // FIFO: INT Level 1 / Sync 2 Byte / FillStart=Sync / Sens high / Enabled
-
+              
      0xC477                 // AFC: Enabled / once after power up  / Limit +3..-4         / High Accuracy     / Enable  frequenct offset register / no strobe
               0xC481        // AFC: Enabled / only during VDI=high / Limit no restriction / NO High Accuracy  / Disable frequenct offset register / no strobe
-
+              
      0xC2AF                 // Filter Digital / Recovery Auto    / Quality Tresh. 7 / Recovery Slow
               0xC26a        // Filter Digital / Recovery Manuell / Quality Tresh. 0 / Recovery Fast
-
-
+     
+     
   */
-
+  
   WriteReg(REG_FDEVMSB, RF_FDEVMSB_45000);
   WriteReg(REG_FDEVLSB, RF_FDEVLSB_45000);
   WriteReg(REG_PALEVEL, RF_PALEVEL_PA0_ON | RF_PALEVEL_OUTPUTPOWER_10110);
@@ -254,7 +271,7 @@ int RFMxx::GetRSSI(bool doTrigger) {
     }
     rssi = -ReadReg(REG_RSSIVALUE);
     rssi >>= 1;
-
+  
   return rssi;
 }
 
@@ -275,14 +292,11 @@ byte RFMxx::spi8(byte value) {
     }
   }
   digitalWrite(m_sck, LOW);
-
   return value;
 }
 
 // soft SPI Interface 16 bit
-unsigned short RFMxx::spi16(unsigned short value) {
-  digitalWrite(m_ss, LOW);
-
+unsigned short RFMxx::spi16(unsigned short value) {  
   for (byte i = 0; i < 16; i++) {
     if (value & 32768) {
       digitalWrite(m_mosi, HIGH);
@@ -298,8 +312,6 @@ unsigned short RFMxx::spi16(unsigned short value) {
     delayMicroseconds(1);
     digitalWrite(m_sck, LOW);
   }
-
-  digitalWrite(m_ss, HIGH);
   return value;
 }
 
@@ -311,7 +323,7 @@ byte RFMxx::ReadReg(byte addr) {
     SPI.transfer(addr & 0x7F);
     result = SPI.transfer(0);
   }
-  else
+  else  
   {
     spi8(addr & 0x7F);
     result = spi8(0);
@@ -341,7 +353,7 @@ RFMxx::RadioType RFMxx::GetRadioType() {
 
 String RFMxx::GetRadioName() {
   switch (GetRadioType()) {
-  case RFMxx::RFM69CW:
+  case RFMxx::RFM69:
     return String("RFM69");
     break;
   default:
@@ -401,7 +413,7 @@ void RFMxx::SendArray(byte *data, byte length) {
     Serial.print("transmission time: ");Serial.print(t);Serial.println(" ms");
   }
   EnableTransmitter(false);
-
+  
   if (m_debug) {
     Serial.println("data: ");
     for (int p = 0; p < length; p++) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Robert Bosch. All Rights Reserved. 
+ * Copyright (C) 2017 Robert Bosch. All Rights Reserved.
  *
  * Disclaimer
  *
@@ -72,17 +72,18 @@
  * @{*/
 
 /***********************************************************************************************************************
- * Wireless sensor for measuring temperature, humidity, pressure, lightlevel and airquality.
- * Hardware: NodeMCU V1.0, RFM69CW, BME680, BH1750 and 1.3 inch 128x64 LCD.
- * Protokoll is UniversalSensor.
- * Frequency is 868.3 MHz (or 433 MHz / 915 MHz based on RFM69CW model).
+ * Wireless sensor for measuring temperature, humidity, airpressure, lightlevel and airquality.
+ * Hardware: NodeMCU V1.0, WEMOS D1 mini, Generic STM32F103C8(e.g.BluePill) or Maple mini + BME680
+ * Optional: RFM69CW, BH1750 and 128x64 OLED Display(SH1106 or SSD1306)
+ * If you use a RFM69CW, protokoll is UniversalSensor, frequency is 868.3 MHz
+ * 
  * V1.3  10.11.2017, T.Hirte
  * V1.4  include BH1750 light sensor, 17.11.2017, T.Hirte
  * V1.5  - changed to Bosch Sensortec Software from 17.11.2017, 01.12.2017, T.Hirte
  *       - rounding of values for OLED Display is done by "display.print()", 05.12.2017, T.Hirte
- *       - changed display of gas resistance on OLED to 123.45kOhm, 18.12.2017, T.Hirte 
- *       - you can now deactivate vcc measuring, BSEC version is shown at startup, 
- *         crc-errors at receiving end: SPI clock reduced to 400kHz, now it's ok, 
+ *       - changed display of gas resistance on OLED to 123.45kOhm, 18.12.2017, T.Hirte
+ *       - you can now deactivate vcc measuring, BSEC version is shown at startup,
+ *         crc-errors at receiving end: SPI clock reduced to 400kHz, now it's ok,
  *         correct hardware wiring (IRQ of RFM69 is not needed), 28.12.2017, T.Hirte
  * V1.6  UniversalSensor
  *       Added Altitude configuration
@@ -95,15 +96,26 @@
  *       Definition of not needed irq for RFMxx removed.
  *       Compiled with esp8266 V2.4.0 -> changed the vcc correction factor for exakt voltage display.
  * V2.0  Lightsensor and OLED display are now autodetected.
- *       BH1750 Lib's changed for this to work ! 
- *       RFMxx Lib changed, Soft-SPI selectable in RFMxx.h, 13.01.2018, T.Hirte    
- * V2.1  RFM69 is now autodetected, if not present, output only on serial port. 
- *       onboard led is flashing 3 times if setup completes successfully, code improvements, 15.01.2018, T.Hirte       
+ *       BH1750 Lib's changed for this to work !
+ *       RFMxx Lib changed, Soft-SPI selectable in RFMxx.h, 13.01.2018, T.Hirte
+ * V2.1  RFM69 is now autodetected, if not present, output only on serial port.
+ *       onboard led is flashing 3 times if setup completes successfully, code improvements, 15.01.2018, T.Hirte
  * V2.2  Debug mode and Soft-SPI is now selectable from the define's, no longer need to change RFMxx.h ;o)
  *       Debug messages added, code improvements, 20.01.2018, T.Hirte
- ************************************************************************************************************************
 
-  Hardware setup:                                                   BME680              RFM69CW
+ * V3.0  First version for ESP8266 (NodeMCU or Wemos D1 mini) and STM32F1 (Maple mini, BluePill)!
+ *       In BSEC routines: WireEndTransmission for STM32xx fixed,
+ *       in RFMxx.cpp: SPI speed for STM32xx fixed, 19.01.2018, T.Hirte
+ *       Input of NodeID, Altitude and Temperature Offset at first start (serial terminal), values stored in EEPROM.
+ *       Delete settings in EEPROM at startup possible, you have 5 seconds to say "Y", otherwise the stored 
+ *       settings will be used. 12.02.2018, T.Hirte
+ *       Autodetect of OLED I2C address moved to Adafruit lib (Adafruit_SSD1306.cpp + Adafruit_SSD1306.h),
+ *       code improvements, 14.02.2018, T.Hirte
+ *       
+ ***********************************************************************************************************************
+
+  Hardware setup ESP8266:
+                                                                    BME680              RFM69CW
                          NodeMCU                                   +------+            +-------+
                          +--\/--+                            +3.3V | 0x76 |      +3,3V |       | GND
                 VCC 3,3V |      | GND                      <-> SDA | or   |   --> MOSI |    NSS| RFM_NSS <--
@@ -118,16 +130,50 @@
                                                            <-> SDA |      |    <-> SDA |       |
                                                                    +------+            +-------+
 
+  Hardware setup STM32F1:
+
+               mapleMini                             BluePill                              BME680              RFM69CW
+               +--\/--+                              +--\/--+                             +------+            +-------+
+  <-- VCC 3.3V |      | VCC 3.3V                PB12 |      | GND                   +3.3V | 0x76 |      +3,3V |       | GND
+  <------- GND |      | GND                     PB13 |      | GND -->             <-> SDA | or   |   --> MOSI |    NSS| RFM_NSS <--
+         BOOT0 |      | VBAT                    PB14 |      | 3V3 -->             --> SCL | 0x77 |   <-- MISO |       |
+  <-> SDA PB_7 |      | PC_13                   PB15 |      | NRST                    GND |      |   --> SCK  |       |
+  <-- SCL PB_6 |      | PC_14                   PA8  |      | PB11                        +------+            +-------+
+          PB_5 |      | PC_15               Tx1 PA9  |      | PB10
+          PB_4 |      | RESET               Rx1 PA10 |      | PB1
+          PB_3 |      | PA_0               USB- PA11 |      | PB0  A0                      BH1750            SH1106 OLED
+         PA_15 |      | PA_1               USB+ PA12 |      | PA7  A1/MOSI1 -->           +------+            +-------+
+         PA_14 |      | PA_2                    PA15 |      | PA6  A2/MISO1 <--     +3.3V | 0x23 |      +3.3V | 0x3C  |
+         PA_13 |      | PA_3                    PB3  |      | PA5  A3/SCK1  -->       GND | or   |        GND | or    |
+         PA_12 |      | PA_4 NSS  -->           PB4  |      | PA4  A4/NSS1  -->   --> SCL | 0x5C |    --> SCL | 0x3D  |
+         PA_11 |      | PA_5 SCK  -->           PB5  |      | PA3  A5             <-> SDA |      |    <-> SDA |       |
+         PA_10 |      | PA_6 MISO <--   <-- SCL PB6  |      | PA2  A6                     +------+            +-------+
+          PA_9 |      | PA_7 MOSI -->   <-> SDA PB7  |      | PA1  A7
+          PA_8 |      | PB_0                    PB8  |      | PA0  A8
+         PB_15 |      | PB_2 int.LED            PB9  |      | PC15
+         PB_14 |      | PB_10                     5V |      | PC14
+         PB_13 |      | PB_11                    GND |      | PC13 int.LED
+         PB_12 |      | + 5V                     3V3 |      | VBAT
+               +------+                              +------+
+
+  BluePill-Board
+  ==============
+  http://wiki.stm32duino.com/index.php?title=Blue_Pill
+
+  Maple_Mini-Board
+  ================
+  https://wolfgangklenk.wordpress.com/2017/11/05/indoor-air-quality-iaq-measurement-with-bosch-bme680-and-stm32f103c8t6/
+
 ************************************************************************************************************************/
 /* defines                                                                                                             */
 /***********************************************************************************************************************/
 /* select your hardware and options */
-#define HAS_RFM69         true   //is auto detected, if not found, sensor works without RFM69, data only on serial port
-#define HAS_OLED          true   //is auto detected, if not found, sensor works without OLED
-#define HAS_LIGHTSENSOR   true   //is auto detected, if not found, sensor works without BH1750
-#define VCC_MEASURE       true   //if not needed, you can disable it here
-#define SOFT_SPI         false   //if you need SOFT-SPI, set true
-#define DEBUG            false   //activate debug mode
+#define HAS_RFM69             true   //is auto detected, if not found, sensor works without RFM69, data only on serial port
+#define HAS_OLED              true   //is auto detected, if not found, sensor works without OLED (SH1106 or SSD1306)
+#define HAS_LIGHTSENSOR       true   //is auto detected, if not found, sensor works without BH1750
+#define VCC_MEASURE           true   //if not needed, you can disable it here
+#define SOFT_SPI             false   //if you need SOFT-SPI, set true
+#define DEBUG                false   //activate debug mode
  
 /***********************************************************************************************************************/
 /* header files                                                                                                        */
@@ -135,6 +181,7 @@
 #include <Wire.h>
 #include "bsec_integration.h"
 #include "UniversalSensor.h"
+#include "HandleEeprom.h"
 
 #if HAS_RFM69
   #include "RFMxx.h"
@@ -151,48 +198,58 @@
 #endif
 
 /***********************************************************************************************************************/
-/* variables                                                                                                           */
+/* variables/constants                                                                                                           */
 /***********************************************************************************************************************/
 /* Sensor config */
-#define VERSION                 2.2f
-#define NODEID                  0x6F       // every node needs his own unique ID 
-#define TEMP_CORR               2.3f       // adjust temperature, 2.4f => -2.4 degrees !
-#define ALTITUDE               53.0f       // 53.0 meters above sea level
+#define VERSION                3.0f
 #define LEDpin                 LED_BUILTIN //auto or set pin of your choice
+uint8_t NODEID;
+float TEMPOFFSET;
+float ALTITUDE;
+HandleEeprom                   eeprom;
 
 /* RFM69 */
 #if HAS_RFM69
   unsigned long DATA_RATE    = 17241ul;    //default data rate (for transmit on RFM69)
-  unsigned long INITIAL_FREQ = 868300;     //default frequency in kHz (5 kHz steps, 860480 ... 879515) 
-  bool RFM69                 = false;      //if RFM69 is not detected 
-  uint8_t loop_count_lim     = 4;          // time to wait between data transmissions (20: 20 * 3sec = 60sec)
+  unsigned long INITIAL_FREQ = 868300;     //default frequency in kHz (5 kHz steps, 860480 ... 879515)
+  bool RFM69                 = false;      //if RFM69 is not detected
+  uint8_t loop_count_lim     = 5;          //time to wait between data transmissions (20: 20 * 3sec = 60sec)
   uint8_t loop_counter;
   /* RFM69, PIN-config SPI (GPIO XX or pin Dx): */
-  #define RFM_SS               D8          //15   SS pin -> RFM69 (NSS)  //for both Soft- and HW-SPI
-  #define RFM_MISO             D6          //12 MISO pin <- RFM69 (MOSI) //only used by soft spi 
-  #define RFM_MOSI             D7          //13 MOSI pin -> RFM69 (MISO) //only used by soft spi
-  #define RFM_SCK              D5          //14  SCK pin -> RFM69 (SCK)  //only used by soft spi
-  RFMxx                        rfm(RFM_MOSI, RFM_MISO, RFM_SCK, RFM_SS, SOFT_SPI);
+  #ifdef ESP8266
+    #define RFM_SS             D8          //15   SS pin -> RFM69 (NSS)  //for both Soft- and HW-SPI
+    #define RFM_MISO           D6          //12 MISO pin <- RFM69 (MOSI) //only used by soft spi
+    #define RFM_MOSI           D7          //13 MOSI pin -> RFM69 (MISO) //only used by soft spi
+    #define RFM_SCK            D5          //14  SCK pin -> RFM69 (SCK)  //only used by soft spi
+  #elif defined(__STM32F1__)
+    #define RFM_SS             PA4         //  SS pin -> RFM69 (NSS)  //for both Soft- and HW-SPI
+    #define RFM_SCK            PA5         // SCK pin -> RFM69 (SCK)  //only used by soft spi
+    #define RFM_MISO           PA6         //MISO pin <- RFM69 (MOSI) //only used by soft spi
+    #define RFM_MOSI           PA7         //MOSI pin -> RFM69 (MISO) //only used by soft spi
+  #endif
+    RFMxx                        rfm(RFM_MOSI, RFM_MISO, RFM_SCK, RFM_SS, SOFT_SPI);
+
 #endif
 
 /* OLED display */
 #if HAS_OLED
-  #define OLED_ADR              0x3C       //set I2C adress 0x3C or 0x3D
-  #define OLED_ADR_SEC          0x3D
-  bool OLED                   = false;     //if display not detected
-  Adafruit_SSD1306              display;
+  #define OLED_ADR             0x3C        //set I2C adress 0x3C or 0x3D
+  #define OLED_ADR_SEC         0x3D
+  bool OLED                  = false;      //if display not detected
+  Adafruit_SSD1306             display;
 #endif
 
 /* Lightsensor  */
 #if HAS_LIGHTSENSOR
-  bool BH1750                 = false;     //if BH1750 not detected
-  AS_BH1750                     bh1750;
+  bool BH1750                = false;      //if BH1750 not detected
+  AS_BH1750                    bh1750;
 #endif
 
-#if VCC_MEASURE
-  ADC_MODE(ADC_VCC);                       //esp internal vcc measuring
+#ifdef ESP8266
+  #if VCC_MEASURE
+    ADC_MODE(ADC_VCC);                     //esp internal vcc measuring
+  #endif
 #endif
-
 /***********************************************************************************************************************/
 /* functions */
 /***********************************************************************************************************************/
@@ -208,8 +265,14 @@ static void blink (byte pin, byte n = 3, int del = 50)
   }
 }
 
+void dim_display (byte brightness)
+{
+   display.ssd1306_command(SSD1306_SETCONTRAST);
+   display.ssd1306_command(brightness);
+}
+
 /***********************************************************************************************************************/
-/*! 
+/*!
  * @brief           Write operation in either Wire or SPI
  *
  * param[in]        dev_addr        Wire or SPI device address
@@ -223,16 +286,19 @@ int8_t bus_write(uint8_t dev_addr, uint8_t reg_addr, uint8_t *reg_data_ptr, uint
 {
     Wire.beginTransmission(dev_addr);
     Wire.write(reg_addr);    /* Set register address to start writing to */
- 
+
     /* Write the data */
     for (int index = 0; index < data_len; index++)
     {
         Wire.write(reg_data_ptr[index]);
     }
- 
-    return (int8_t)Wire.endTransmission();
+    #ifdef __STM32F1__
+      Wire.endTransmission();
+      return 0;
+    #else
+      return (int8_t)Wire.endTransmission();
+    #endif
 }
-
 /***********************************************************************************************************************/
 /*!
  * @brief           Read operation in either Wire or SPI
@@ -250,20 +316,22 @@ int8_t bus_read(uint8_t dev_addr, uint8_t reg_addr, uint8_t *reg_data_ptr, uint1
     Wire.beginTransmission(dev_addr);
     Wire.write(reg_addr);                    /* Set register address to start reading from */
     comResult = Wire.endTransmission();
- 
+
     delayMicroseconds(150);                 /* Precautionary response delay */
     Wire.requestFrom(dev_addr, (uint8_t)data_len);    /* Request data */
- 
+
     int index = 0;
     while (Wire.available())  /* The slave device may send less than requested (burst read) */
     {
         reg_data_ptr[index] = Wire.read();
         index++;
     }
- 
-    return comResult;
+    #ifdef __STM32F1__
+      return 0;
+    #else
+      return comResult;
+    #endif
 }
-
 /***********************************************************************************************************************/
 /*!
  * @brief           System specific implementation of sleep function
@@ -302,7 +370,7 @@ uint32_t state_load(uint8_t *state_buffer, uint32_t n_buffer)
     // ...
     // Load a previous library state from non-volatile memory, if available.
     //
-    // Return zero if loading was unsuccessful or no state was available, 
+    // Return zero if loading was unsuccessful or no state was available,
     // otherwise return length of loaded state string.
     // ...
     return 0;
@@ -338,7 +406,7 @@ uint32_t config_load(uint8_t *config_buffer, uint32_t n_buffer)
     // ...
     // Load a library config from non-volatile memory, if available.
     //
-    // Return zero if loading was unsuccessful or no config was available, 
+    // Return zero if loading was unsuccessful or no config was available,
     // otherwise return length of loaded config string.
     // ...
     return 0;
@@ -363,17 +431,27 @@ uint32_t config_load(uint8_t *config_buffer, uint32_t n_buffer)
  */
 void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy, float temperature, float humidity, float pressure, float raw_temperature, float raw_humidity, float gas, bsec_library_return_t bsec_status)
 {
+  #if DEBUG
+    unsigned long cycle_start = millis();
+  #endif
   /* get battery voltage */
   #if VCC_MEASURE
-    float vcc = ESP.getVcc() / 930.9; //correction for 220k/100k voltage divider to A0 on NodeMCU and D1 mini...
-  #else  
-    float vcc = 0xFF; //0.0;
+    #ifdef ESP8266
+      float vcc = ESP.getVcc() / 930.9; //correction for 220k/100k voltage divider to A0 on NodeMCU and D1 mini...
+    #elif defined(__STM32F1__)
+      //int vcc = analogRead(A0);
+      float vcc = 3.3; //TODO: for STM32
+    #else
+      float vcc = 0xFF;
+    #endif
+  #else
+    float vcc = 0xFF;
   #endif
 
   /* get light level */
   #if HAS_LIGHTSENSOR
     float lux;
-    if (BH1750) 
+    if (BH1750)
     {
       lux = bh1750.readLightLevel();
       #if HAS_OLED
@@ -381,25 +459,20 @@ void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy, float temp
         {
           /* display dimm, if lightlevel < 10lux */
           if (lux < 10)
-          {
-            display.dim(true);
-          }
+            dim_display(0);
           else
-          {
-            display.ssd1306_command(SSD1306_SETCONTRAST);
-            display.ssd1306_command(0x80);
-          }
+            dim_display(0x80);
         }
       #endif
     }
     else
     {
-      lux = 0xFFFFFF; //0.0;
+      lux = 0xFFFFFF;
     }
   #else
     float lux = 0xFFFFFF;
   #endif
-  
+
   pressure /= pow(((float) 1.0 - ((float)ALTITUDE / 44330.0)), (float) 5.255);
   pressure /= 100;
 
@@ -441,7 +514,7 @@ void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy, float temp
     }
   #endif
   Serial.println("");
-  
+
   /* on OLED Display */
   #if HAS_OLED
     if (OLED)
@@ -459,8 +532,8 @@ void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy, float temp
       display.setTextSize(1);
       display.setCursor(98, 7);
       display.println("%");
-      display.println("");
-    
+      display.println();
+
       display.print("Luftdruck: ");
       display.print(pressure, 0);
       display.println("hPa");
@@ -477,7 +550,7 @@ void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy, float temp
       {
         display.print("berechne..");
       }
-      display.println("");
+      display.println();
 
       #if HAS_LIGHTSENSOR
         if (BH1750)
@@ -487,7 +560,7 @@ void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy, float temp
           display.println("lx");
         }
       #endif
-    
+
       #if VCC_MEASURE
         display.print("Batterie : ");
         display.print(vcc, 1);
@@ -505,7 +578,7 @@ void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy, float temp
     if (RFM69)
     {
       loop_counter += 1;
-      if(loop_counter >= loop_count_lim) //send every (loop_count_lim * 3) seconds 
+      if(loop_counter >= loop_count_lim) //send every (loop_count_lim * 3) seconds
       {
         loop_counter = 0;
 
@@ -521,7 +594,7 @@ void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy, float temp
         data.Voltage = vcc;
         data.Version = VERSION * 10;
         data.Rain = 0xFFFF;
-        data.WindDirection = 0xFFFF; 
+        data.WindDirection = 0xFFFF;
         data.WindGust = 0xFFFF;
         data.WindSpeed = 0xFFFF;
         data.Debug = 0xFFFFFF;
@@ -537,11 +610,15 @@ void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy, float temp
           Serial.println(" sent.");
           Serial.println();
         #endif
-        
+
         blink(LEDpin, 1, 25);
       }
     }
   #endif
+#if DEBUG
+  unsigned long cycle = millis() - cycle_start;
+  Serial.print("Zykluszeit (ms): "); Serial.println(cycle);
+#endif
 }
 
 /***********************************************************************************************************************/
@@ -554,87 +631,60 @@ void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy, float temp
 void setup()
 {
     return_values_init ret;
-    
+
     /* get bsec version */
     bsec_version_t  version;
     bsec_get_version(&version);
-    
+
     pinMode(LEDpin, OUTPUT);
     digitalWrite(LEDpin, HIGH); //LED is low activ !
 
     #if DEBUG
+      eeprom.SetDebugMode(true);
       #if HAS_RFM69
         rfm.SetDebugMode(true);
       #endif
     #endif
-    
+
     Serial.begin(115200);
     sleep(6000); //some time to open the terminalprogram ;o)
-    
+
     Serial.println("");
     Serial.print("BME680 wireless sensor V");
     Serial.println(VERSION, 1);
+    Serial.print("Compiled: ");
+    Serial.println(__TIMESTAMP__);
     Serial.println("Protocol: UniversalSensor");
-    Serial.printf("BSEC version: %d.%d.%d.%d\n",version.major, version.minor, version.major_bugfix, version.minor_bugfix);
-    Serial.print("ESP Core Version: ");
-    Serial.println(ESP.getCoreVersion());
-    Serial.print("ESP SDK Version: ");
-    Serial.println(ESP.getSdkVersion());
-    Serial.print("NODE-ID : 0x");
-    Serial.println(NODEID, HEX);
-
-    #if DEBUG
-      Serial.println("aktivierte Komponenten:");
-      #if HAS_RFM69
-        Serial.println("RFM69 - 433/868/915MHz Sender");
-      #endif  
-      #if HAS_LIGHTSENSOR
-        Serial.println("BH1750 - Lichtsensor");
-      #endif
-      #if HAS_OLED
-        Serial.println("OLED - 128x64 OLED Display mit SH1106 Chipsatz");
-      #endif
-      Serial.print("Messung der Versorgungsspannung ");
-      #if VCC_MEASURE
-        Serial.println("aktiv");
-      #else
-        Serial.println("deaktiviert");
-      #endif
+    #ifdef ESP8266    
+      Serial.printf("BSEC version: %d.%d.%d.%d\n",version.major, version.minor, version.major_bugfix, version.minor_bugfix);
+      Serial.print("ESP Core Version: ");
+      Serial.println(ESP.getCoreVersion());
+      Serial.print("ESP SDK Version: ");
+      Serial.println(ESP.getSdkVersion());
+    #elif defined(__STM32F1__)
+      Serial.print("BSEC Version: ");
+      Serial.print(version.major);
+      Serial.print(".");
+      Serial.print(version.minor);
+      Serial.print(".");
+      Serial.print(version.major_bugfix);
+      Serial.print(".");
+      Serial.println(version.minor_bugfix);
     #endif
-    
+      Serial.println();
+      
     /* init I2C */
     Wire.begin();
-    Wire.setClock(400000); 
-    
+    Wire.setClock(400000);
+
     #if HAS_OLED
       /* init OLED */
-      byte OLED_I2C_ADR;
-      Wire.beginTransmission(OLED_ADR);  //first try primary adress
-      if (Wire.endTransmission() == 0)
+      if (display.begin(SSD1306_SWITCHCAPVCC));
       {
-        OLED_I2C_ADR = OLED_ADR;
         OLED = true;
-        Serial.println("OLED found on 0x3C");
-      } 
-      if (!OLED)
-      {
-        Wire.beginTransmission(OLED_ADR_SEC);  //then try secondary adress
-        if (Wire.endTransmission() == 0)
-        {
-          OLED_I2C_ADR = OLED_ADR_SEC;
-          OLED = true;
-          Serial.println("OLED found on 0x3D");
-        } 
-      }
-      if (!OLED)
-        Serial.println("OLED not found");
-      
-      if (OLED)
-      {
-        display.begin(SSD1306_SWITCHCAPVCC, OLED_I2C_ADR); // initialize VCC state, I2C addr 0x3C / 0x3D
         display.setTextSize(2);
-        display.setTextColor(WHITE);
-        display.setCursor(5,4);
+        display.setTextColor(WHITE, BLACK);
+        display.setCursor(5,1);
         display.ssd1306_command(SSD1306_SETCONTRAST);
         display.ssd1306_command(0x80);
         display.clearDisplay();
@@ -643,7 +693,7 @@ void setup()
         display.println("  BME680");
         display.display();
         display.setTextSize(1);
-        display.println("");
+        display.println();
         display.print("Wireless Sensor V");
         display.println(VERSION, 1);
         display.println("UniversalSensor Prot.");
@@ -655,8 +705,102 @@ void setup()
         display.print(version.major_bugfix);
         display.print(".");
         display.println(version.minor_bugfix);
-        display.print("Node-ID: 0x");
-        display.println(NODEID, HEX);
+        display.display();
+        sleep(5000);
+      }
+    #endif
+    
+    #ifdef ESP8266
+      EEPROM.begin(6); //we need only 6 bytes
+    #endif
+    
+    /*** restore defaults ***/
+    eeprom.RestoreDefaults();
+    
+    /*** read settings from EEPROM ***/
+    NODEID = eeprom.ReadNodeID();
+    ALTITUDE = eeprom.ReadAltitude();
+    TEMPOFFSET = eeprom.ReadTempOffset();
+    
+    /*** if no or not all values stored in EEPROM, edit settings ***/
+    if ( NODEID == 0xFF || ALTITUDE == 65560.5 || (TEMPOFFSET > -1.2 && TEMPOFFSET < -1.0) )
+    {
+      #if HAS_OLED
+        if (OLED)
+          {
+            display.setCursor(0,0);
+            display.clearDisplay();
+            display.println("   *** SETUP ***");
+            display.println();
+            display.display();
+          }
+     #endif
+      
+      /*** edit nodeID ***/
+      if (NODEID == 0xFF)
+        NODEID = eeprom.EditNodeID(NODEID);
+      
+      /*** edit altitude ***/
+      if (ALTITUDE == 65560.5)
+        ALTITUDE = eeprom.EditAltitude(ALTITUDE);
+      
+      /*** edit temperature offset ***/
+      if (TEMPOFFSET > -1.2 && TEMPOFFSET < -1.0)
+        TEMPOFFSET = eeprom.EditTempOffset(TEMPOFFSET);
+        
+      Serial.println("Save settings ...");
+      eeprom.SaveSettings(NODEID, ALTITUDE, TEMPOFFSET);
+    }
+    else
+    {
+      Serial.println("Settings from EEPROM:");
+
+      #if HAS_OLED
+        if (OLED)
+          {
+            display.setCursor(0,0);
+            display.clearDisplay();
+            display.println("   *** KONFIG ***   ");
+            display.println();
+            display.display();
+          }
+      #endif
+    }
+    
+    Serial.print("Node-ID           : ");
+    Serial.print(NODEID, DEC);
+    Serial.print(" (0x");
+    if (NODEID < 16)
+      Serial.print("0");
+    Serial.print(NODEID, HEX);
+    Serial.println(")");
+
+    Serial.print("Altitude          : ");
+    Serial.print(ALTITUDE, 1);
+    Serial.println("m");
+
+    Serial.print("Temperature offset: ");
+    Serial.print(TEMPOFFSET, 1);
+    Serial.println(" degrees celsius");
+    Serial.println();
+
+    #if HAS_OLED
+      if (OLED)
+      {
+        display.print("Node-ID  : ");
+        display.print(NODEID, DEC);
+        display.print(" (0x");
+        if (NODEID < 16)
+          display.print("0");
+        display.print(NODEID, HEX);
+        display.println(")");
+        display.print("Hoehe    : ");
+        display.print(ALTITUDE, 1);
+        display.println("m");
+        display.print("TempOffs.: ");
+        display.print(TEMPOFFSET, 1);
+        display.write(247);
+        display.println("C");
         display.display();
         sleep(5000);
         display.setCursor(0,0);
@@ -664,6 +808,27 @@ void setup()
       }
     #endif
     
+    sleep(5000); //short time to read settings
+
+    #if DEBUG
+      Serial.println("activated components:");
+      #if HAS_RFM69
+        Serial.println("RFM69 - 433/868/915MHz transmitter");
+      #endif
+      #if HAS_LIGHTSENSOR
+        Serial.println("BH1750 - lightsensor");
+      #endif
+      #if HAS_OLED
+        Serial.println("OLED - 128x64 OLED display (SH1106 or SSD1306)");
+      #endif
+      Serial.print("measuring of battery voltage ");
+      #if VCC_MEASURE
+        Serial.println("activ");
+      #else
+        Serial.println("deactivated");
+      #endif
+    #endif
+
     /* --- RFM69CW init --- */
     #if HAS_RFM69
       if (rfm.Begin())
@@ -678,13 +843,13 @@ void setup()
           }
         #endif
         Serial.print("RFM69  init ... ");
-        
+
         rfm.InitializeLaCrosse();
         #if DEBUG
           Serial.println();
           Serial.println("Init LaCrosse done");
-        #endif      
-        
+        #endif
+
         rfm.SetFrequency(INITIAL_FREQ);
         float init_freq = float(INITIAL_FREQ);
         #if HAS_OLED
@@ -700,7 +865,7 @@ void setup()
           Serial.print(init_freq/1000,3);
           Serial.println(" MHz");
         #endif
-        
+
         rfm.SetDataRate(DATA_RATE);
         #if HAS_OLED
           if (OLED)
@@ -715,7 +880,7 @@ void setup()
           Serial.print(DATA_RATE);
           Serial.println(" bps");
         #endif
-      
+
         rfm.PowerDown(); // sleep to save power
         Serial.println("done");
         #if HAS_OLED
@@ -738,7 +903,7 @@ void setup()
         Serial.println("RFM69 not found, no wireless transmission !");
       }
     #endif
-    
+
     /* --- BME680 init --- */
     Serial.print("BME680 init ... ");
     #if HAS_OLED
@@ -748,14 +913,14 @@ void setup()
         display.display();
       }
     #endif
-        
-    /* Call to the function which initializes the BSEC library 
+
+    /* Call to the function which initializes the BSEC library
      * Switch on low-power mode and provide no temperature offset
-     * for UltraLowPower Mode change following line to: 
+     * for UltraLowPower Mode change following line to:
      * ret = bsec_iot_init(BSEC_SAMPLE_RATE_ULP, ... */
 
-    ret = bsec_iot_init(BSEC_SAMPLE_RATE_LP, TEMP_CORR, bus_write, bus_read, sleep, state_load, config_load);
-    
+    ret = bsec_iot_init(BSEC_SAMPLE_RATE_LP, TEMPOFFSET, bus_write, bus_read, sleep, state_load, config_load);
+
     if (ret.bme680_status)
     {
       /* Could not intialize BME680 */
@@ -785,7 +950,7 @@ void setup()
       #endif
       return; //jump to main loop
     }
-    
+
     Serial.println("done");
     #if HAS_OLED
       if (OLED)
@@ -794,7 +959,7 @@ void setup()
         display.display();
       }
     #endif
-    
+
     /* --- BH1750 init --- */
     #if HAS_LIGHTSENSOR
       Serial.print("BH1750 init ... ");
@@ -817,7 +982,7 @@ void setup()
             display.display();
           }
         #endif
-      }  
+      }
       else
       {
         #if HAS_OLED
@@ -833,7 +998,7 @@ void setup()
     #endif
 
     blink(LEDpin, 3, 250); //setup success
-    
+
     Serial.println("Ready, start measuring ...");
     Serial.println("");
     #if HAS_OLED
@@ -846,7 +1011,7 @@ void setup()
         display.display();
       }
     #endif
-    
+
     /* todo ... */
     /* Call to endless loop function which reads and processes data based on sensor settings */
     /* State is saved every 10.000 samples, which means every 10.000 * 3 secs = 500 minutes  */
@@ -856,12 +1021,8 @@ void setup()
 /***********************************************************************************************************************/
 void loop()
 {
-  //if an error occured in setup
-  do
-  {
-    blink(LEDpin, 10, 250); //setup not successful
-  } 
-  while(0);
+  //if BME680 has an error during setup
+  blink(LEDpin, 3, 250); //BME680 setup not successful
 }
 
 /*! @}*/

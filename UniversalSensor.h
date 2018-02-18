@@ -10,7 +10,7 @@ public:
   struct Frame {
     byte  Header;
     byte  ID;
-    float Temperature;     // �C 
+    float Temperature;     // °C 
     byte  Humidity;        // %rH
     uint16_t Rain;         // mm      (0.5 steps)
     float WindDirection;   // Degree  (0.0 - 365.0)

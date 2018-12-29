@@ -84,18 +84,21 @@ extern "C"
 #include <stdint.h>
 #include <stddef.h>
 
-#define BSEC_MAX_PHYSICAL_SENSOR     (6)         /*!< Number of physical sensors that need allocated space before calling bsec_update_subscription() */
-#define BSEC_MAX_PROPERTY_BLOB_SIZE  (400)     /*!< Maximum size (in bytes) of the data blobs returned by bsec_get_state() and bsec_get_configuration() */
+#define BSEC_MAX_WORKBUFFER_SIZE     (2048)    /*!< Maximum size (in bytes) of the work buffer */
+#define BSEC_MAX_PHYSICAL_SENSOR     (8)         /*!< Number of physical sensors that need allocated space before calling bsec_update_subscription() */
+#define BSEC_MAX_PROPERTY_BLOB_SIZE  (454)     /*!< Maximum size (in bytes) of the data blobs returned by bsec_get_configuration() */
+#define BSEC_MAX_STATE_BLOB_SIZE     (134)        /*!< Maximum size (in bytes) of the data blobs returned by bsec_get_state()*/
 #define BSEC_SAMPLE_RATE_DISABLED    (65535.0f)      /*!< Sample rate of a disabled sensor */
 #define BSEC_SAMPLE_RATE_ULP         (0.0033333f)           /*!< Sample rate in case of Ultra Low Power Mode */
 #define BSEC_SAMPLE_RATE_LP          (0.33333f)            /*!< Sample rate in case of Low Power Mode */
+#define BSEC_SAMPLE_RATE_ULP_MEASUREMENT_ON_DEMAND         (0.0f)            /*!< Input value used to trigger an extra measurment (ULP plus) */        
 
 #define BSEC_PROCESS_PRESSURE       (1 << (BSEC_INPUT_PRESSURE-1))      /*!< process_data bitfield constant for pressure @sa bsec_bme_settings_t */
 #define BSEC_PROCESS_TEMPERATURE    (1 << (BSEC_INPUT_TEMPERATURE-1))   /*!< process_data bitfield constant for temperature @sa bsec_bme_settings_t */
 #define BSEC_PROCESS_HUMIDITY       (1 << (BSEC_INPUT_HUMIDITY-1))      /*!< process_data bitfield constant for humidity @sa bsec_bme_settings_t */
 #define BSEC_PROCESS_GAS            (1 << (BSEC_INPUT_GASRESISTOR-1))   /*!< process_data bitfield constant for gas sensor @sa bsec_bme_settings_t */
-#define BSEC_NUMBER_OUTPUTS         (13)     /*!< Number of outputs, depending on solution */
-#define BSEC_OUTPUT_INCLUDED        (4250095)         /*!< bitfield that indicates which outputs are included in the solution */
+#define BSEC_NUMBER_OUTPUTS         (14)     /*!< Number of outputs, depending on solution */
+#define BSEC_OUTPUT_INCLUDED        (1210863)         /*!< bitfield that indicates which outputs are included in the solution */
 
 /*!
  * @brief Enumeration for input (physical) sensors.
@@ -115,7 +118,7 @@ typedef enum
     /**
      * @brief Humidity sensor output of BMExxx [%]
      *
-     * @note Relative humidity strongly depends on the temperature (it is measured at). It may required a convertion to
+     * @note Relative humidity strongly depends on the temperature (it is measured at). It may require a conversion to
      * the temperature outside of the device. 
      *
      * @sa bsec_virtual_sensor_t
@@ -123,7 +126,7 @@ typedef enum
     BSEC_INPUT_HUMIDITY = 2,            
 
     /**
-     * @brief Temperature sensor output of BMExxx [degrees Celcius]
+     * @brief Temperature sensor output of BMExxx [degrees Celsius]
      * 
      * @note The BME680 is factory trimmed, thus the temperature sensor of the BME680 is very accurate. 
      * The temperature value is a very local measurement value and can be influenced by external heat sources. 
@@ -135,7 +138,7 @@ typedef enum
     /**
      * @brief Gas sensor resistance output of BMExxx [Ohm]
      * 
-     * The restistance value changes due to varying VOC concentrations (the higher the concentration of reducing VOCs, 
+     * The resistance value changes due to varying VOC concentrations (the higher the concentration of reducing VOCs, 
      * the lower the resistance and vice versa). 
      */
     BSEC_INPUT_GASRESISTOR = 4,         /*!<  */
@@ -143,10 +146,10 @@ typedef enum
     /**
      * @brief Additional input for device heat compensation
      * 
-     * IAQ solution: The value is substracted from ::BSEC_INPUT_TEMPERATURE to compute 
+     * IAQ solution: The value is subtracted from ::BSEC_INPUT_TEMPERATURE to compute 
      * ::BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_TEMPERATURE.
      *
-     * ALL solution: Generic heatsource 1
+     * ALL solution: Generic heat source 1
      * 
      * @sa bsec_virtual_sensor_t
      */
@@ -155,8 +158,18 @@ typedef enum
     /**
      * @brief Additional input for device heat compensation 8
      *
-     * Generic heatsource 8
+     * Generic heat source 8
      */
+
+    
+    /**
+     * @brief Additional input that disables baseline tracker
+     *
+     * 0 - Normal  
+     * 1 - Event 1
+     * 2 - Event 2
+     */
+    BSEC_INPUT_DISABLE_BASELINE_TRACKER = 23, 
 
 } bsec_physical_sensor_t;
 
@@ -171,7 +184,7 @@ typedef enum
 typedef enum
 {
     /**
-     * @brief Indoor-air-qualiy estimate [0-500]
+     * @brief Indoor-air-quality estimate [0-500]
      * 
      * Indoor-air-quality (IAQ) gives an indication of the relative change in ambient TVOCs detected by BME680. 
      * 
@@ -181,12 +194,15 @@ typedef enum
      * consistent IAQ performance. The calibration process considers the recent measurement history (typ. up to four 
      * days) to ensure that IAQ=25 corresponds to typical good air and IAQ=250 indicates typical polluted air.
      */
-    BSEC_OUTPUT_IAQ_ESTIMATE = 1,                           
+    BSEC_OUTPUT_IAQ = 1,                           
+    BSEC_OUTPUT_STATIC_IAQ = 2,                             /*!< Unscaled indoor-air-quality estimate */ 
+    BSEC_OUTPUT_CO2_EQUIVALENT = 3,                         /*!< co2 equivalent estimate [ppm] */   
+    BSEC_OUTPUT_BREATH_VOC_EQUIVALENT = 4,                  /*!< breath VOC concentration estimate [ppm] */    	
 
     /**
-     * @brief Temperature sensor signal [degrees Celcius]
+     * @brief Temperature sensor signal [degrees Celsius]
      * 
-     * Temperature directly measured by BME680 in degree Celcius. 
+     * Temperature directly measured by BME680 in degree Celsius. 
      * 
      * @note This value is cross-influenced by the sensor heating and device specific heating.
      */
@@ -211,7 +227,7 @@ typedef enum
     /**
      * @brief Gas sensor signal [Ohm]
      * 
-     * Gas resistance measured directly by the BME680 in Ohm.The restistance value changes due to varying VOC 
+     * Gas resistance measured directly by the BME680 in Ohm.The resistance value changes due to varying VOC 
      * concentrations (the higher the concentration of reducing VOCs, the lower the resistance and vice versa). 
      */
     BSEC_OUTPUT_RAW_GAS = 9,                
@@ -219,7 +235,7 @@ typedef enum
     /**
      * @brief Gas sensor stabilization status [boolean]
      * 
-     * Indicates initial stabilization status of the gas sensor element: stabilization is ongoing (0) or stablization 
+     * Indicates initial stabilization status of the gas sensor element: stabilization is ongoing (0) or stabilization 
      * is finished (1).   
      */
     BSEC_OUTPUT_STABILIZATION_STATUS = 12,                 
@@ -227,29 +243,29 @@ typedef enum
     /**
      * @brief Gas sensor run-in status [boolean]
      *
-     * Indicates power-on stabilization status of the gas sensor element: stabilization is ongoing (0) or stablization 
+     * Indicates power-on stabilization status of the gas sensor element: stabilization is ongoing (0) or stabilization 
      * is finished (1).
      */
     BSEC_OUTPUT_RUN_IN_STATUS = 13,                         
 
     /**
-     * @brief Sensor heat compensated temperature [degrees Celcius]
+     * @brief Sensor heat compensated temperature [degrees Celsius]
      * 
-     * Temperature measured by BME680 which is compensated for the influence of sensor (heater) in degree Celcius. 
+     * Temperature measured by BME680 which is compensated for the influence of sensor (heater) in degree Celsius. 
      * The self heating introduced by the heater is depending on the sensor operation mode and the sensor supply voltage. 
      * 
      * 
      * @note IAQ solution: In addition, the temperature output can be compensated by an user defined value 
-     * (::BSEC_INPUT_HEATSOURCE in degrees Celcius), which represents the device specific self-heating.
+     * (::BSEC_INPUT_HEATSOURCE in degrees Celsius), which represents the device specific self-heating.
      * 
      * Thus, the value is calculated as follows:
-     * * IAQ soultion: ```BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_TEMPERATURE = ::BSEC_INPUT_TEMPERATURE -  function(sensor operation mode, sensor supply voltage) - ::BSEC_INPUT_HEATSOURCE```
+     * * IAQ solution: ```BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_TEMPERATURE = ::BSEC_INPUT_TEMPERATURE -  function(sensor operation mode, sensor supply voltage) - ::BSEC_INPUT_HEATSOURCE```
      * * other solutions: ```::BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_TEMPERATURE = ::BSEC_INPUT_TEMPERATURE -  function(sensor operation mode, sensor supply voltage)```
      *
      * The self-heating in operation mode BSEC_SAMPLE_RATE_ULP is negligible.
      * The self-heating in operation mode BSEC_SAMPLE_RATE_LP is supported for 1.8V by default (no config file required). If the BME680 sensor supply voltage is 3.3V, the IoT_LP_3_3V.config shall be used.
      */
-    BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_TEMPERATURE = 15,   
+    BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_TEMPERATURE = 14,   
 
     /**
      * @brief Sensor heat compensated humidity [%] 
@@ -259,11 +275,13 @@ typedef enum
      * It converts the ::BSEC_INPUT_HUMIDITY from temperature ::BSEC_INPUT_TEMPERATURE to temperature 
      * ::BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_TEMPERATURE.
      * 
-     * @note IAQ soultion: If ::BSEC_INPUT_HEATSOURCE is used for device specific temperature compensation, it will be 
+     * @note IAQ solution: If ::BSEC_INPUT_HEATSOURCE is used for device specific temperature compensation, it will be 
      * effective for ::BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_HUMIDITY too.
      */
-    BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_HUMIDITY = 16,     
+    BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_HUMIDITY = 15,     
 
+    BSEC_OUTPUT_COMPENSATED_GAS = 18,         			    /*!< Reserved internal debug output */ 	
+	BSEC_OUTPUT_GAS_PERCENTAGE = 21                         /*!< percentage of min and max filtered gas value [%] */
 } bsec_virtual_sensor_t;
 
 /*!
@@ -287,6 +305,7 @@ typedef enum
     BSEC_E_SU_MULTGASSAMPLINTVL = -17,              /*!< The sample_rate of the requested output (virtual), which requires the gas sensor, is not equal to the sample_rate that the gas sensor is being operated */
     BSEC_E_SU_HIGHHEATERONDURATION = -18,           /*!< The duration of one measurement is longer than the requested sampling interval */
     BSEC_W_SU_UNKNOWNOUTPUTGATE = 10,               /*!< Output (virtual) sensor id passed to bsec_update_subscription() is not in the valid range; e.g., n_requested_virtual_sensors > actual number of output (virtual) sensors requested */
+    BSEC_W_SU_MODINNOULP = 11,                      /*!< ULP plus can not be requested in non-ulp mode */ /*MOD_ONLY*/
     BSEC_I_SU_SUBSCRIBEDOUTPUTGATES = 12,           /*!< No output (virtual) sensor data were requested via bsec_update_subscription() */
     BSEC_E_PARSE_SECTIONEXCEEDSWORKBUFFER = -32,    /*!< n_work_buffer_size passed to bsec_set_[configuration/state]() not sufficient */
     BSEC_E_CONFIG_FAIL = -33,                       /*!< Configuration failed */
@@ -296,10 +315,12 @@ typedef enum
     BSEC_E_CONFIG_EMPTY = -37,                      /*!< n_serialized_[settings/state] passed to bsec_set_[configuration/state]() is to short to be valid */
     BSEC_E_CONFIG_INSUFFICIENTWORKBUFFER = -38,     /*!< Provided work_buffer is not large enough to hold the desired string */
     BSEC_E_CONFIG_INVALIDSTRINGSIZE = -40,          /*!< String size encoded in configuration/state strings passed to bsec_set_[configuration/state]() does not match with the actual string size n_serialized_[settings/state] passed to these functions */
-    BSEC_E_CONFIG_INSUFFICIENTBUFFER = -41,         /*!< String buffer nsufficient to hold serialized data from BSEC library */
-    BSEC_E_SET_INVALIDCHANNELIDENTIFIER = -100,     /*!< Internal error code */
+    BSEC_E_CONFIG_INSUFFICIENTBUFFER = -41,         /*!< String buffer insufficient to hold serialized data from BSEC library */
+    BSEC_E_SET_INVALIDCHANNELIDENTIFIER = -100,     /*!< Internal error code, size of work buffer in setConfig must be set to BSEC_MAX_WORKBUFFER_SIZE */
     BSEC_E_SET_INVALIDLENGTH = -104,                /*!< Internal error code */
     BSEC_W_SC_CALL_TIMING_VIOLATION = 100,          /*!< Difference between actual and defined sampling intervals of bsec_sensor_control() greater than allowed */
+    BSEC_W_SC_MODEXCEEDULPTIMELIMIT = 101,          /*!< ULP plus is not allowed because an ULP measurement just took or will take place */ /*MOD_ONLY*/
+    BSEC_W_SC_MODINSUFFICIENTWAITTIME = 102         /*!< ULP plus is not allowed because not sufficient time passed since last ULP plus */ /*MOD_ONLY*/
 } bsec_library_return_t;
 
 /*!
@@ -361,7 +382,7 @@ typedef struct
     uint8_t sensor_id;          /*!< @brief Identifier of virtual sensor @sa bsec_virtual_sensor_t  */
     
     /**
-     * @brief Accuracy status 0-4
+     * @brief Accuracy status 0-3
      *
      * Some virtual sensors provide a value in the accuracy field. If this is the case, the meaning of the field is as 
      * follows:
@@ -390,10 +411,10 @@ typedef struct
      * 
      *   | Virtual sensor             | Value |  Accuracy description                                           |
      *   |----------------------------|-------|-----------------------------------------------------------------|
-     *   | IAQ                        |   0   | The sensor is not yet stablized or in a run-in status           |
+     *   | IAQ                        |   0   | The sensor is not yet stabilized or in a run-in status           |
      *   |                            |   1   | Calibration required                                            |
      *   |                            |   2   | Calibration on-going                                            |
-     *   |                            |   3   | Calibration is done, now IAQ estimate achieves best perfomance  |
+     *   |                            |   3   | Calibration is done, now IAQ estimate achieves best performance  |
      */     
     uint8_t accuracy;           
 } bsec_output_t;
@@ -416,7 +437,7 @@ typedef struct
     /**
      * @brief Identifier of the virtual or physical sensor
      *
-     * The meaning of this field changes depening on whether the structs are as the requested_virtual_sensors argument
+     * The meaning of this field changes depending on whether the structs are as the requested_virtual_sensors argument
      * to bsec_update_subscription() or as the required_sensor_settings argument.
      *
      * | bsec_update_subscription() argument | sensor_id field interpretation |
@@ -455,7 +476,7 @@ typedef struct
     uint8_t trigger_measurement;        /*!< @brief Trigger a forced measurement with these settings now [0/1] */
 } bsec_bme_settings_t;
 
-/* internal defines and backward compatbility */
+/* internal defines and backward compatibility */
 #define BSEC_STRUCT_NAME            Bsec                       /*!< Internal struct name */
 
 /*@}*/

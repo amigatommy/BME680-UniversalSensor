@@ -32,17 +32,15 @@
 #define BH1750_DEBUG 0
 
 /**
- * Constructor.
- * Erlaubt die I2C-Adresse des Sensors zu ändern (NEU: automatische Erkennung, siehe "NEU: ..." am Ende dieses Textes). 
+ * Constructor,
+ * Erlaubt die I2C-Adresse des Sensors zu ändern. 
  * Standardadresse: 0x23, Alternativadresse: 0x5C. 
  * Es sind entsprechende Konstanten definiert: BH1750_DEFAULT_I2CADDR  und BH1750_SECOND_I2CADDR.
  * Bei Nichtangabe wird die Standardadresse verwendet. 
  * Um die Alternativadresse zu nutzen, muss der Sensorpin 'ADR' des Chips auf VCC gelegt werden.
- * NEU: In der Funktion AS_BH1750::begin wird als Erstes automatisch geprüft, ob ein Sensor auf
- * der primaeren oder sekundaeren Adresse vorhanden ist.
  */
-AS_BH1750::AS_BH1750() {
-  _address = BH1750_DEFAULT_I2CADDR;
+AS_BH1750::AS_BH1750(uint8_t address) {
+  _address = address;
   _hardwareMode = 255;
 }
 

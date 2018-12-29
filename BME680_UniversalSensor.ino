@@ -111,8 +111,11 @@
  *       settings will be used. 12.02.2018, T.Hirte
  *       Autodetect of OLED I2C address moved to Adafruit lib (Adafruit_SSD1306.cpp + Adafruit_SSD1306.h),
  *       code improvements, 14.02.2018, T.Hirte
- *       
- ***********************************************************************************************************************
+ *
+ * V3.1  Update to BSEC-software V1.4.7.1, integrate changes from juergs (error if HAS_OLED = false, switch off wifi).
+ *       Compiled with Arduino V1.8.7 (used ESP8266 package: V2.5.0 beta2) ;o) 27.12.2018, T.Hirte
+ *
+ ***************************************************************************************************************************
 
   Hardware setup ESP8266:
                                                                     BME680              RFM69CW
@@ -174,7 +177,7 @@
 #define VCC_MEASURE           true   //if not needed, you can disable it here
 #define SOFT_SPI             false   //if you need SOFT-SPI, set true
 #define DEBUG                false   //activate debug mode
- 
+
 /***********************************************************************************************************************/
 /* header files                                                                                                        */
 /***********************************************************************************************************************/
@@ -183,6 +186,10 @@
 #include "UniversalSensor.h"
 #include "HandleEeprom.h"
 
+#ifdef ESP8266
+  #include <ESP8266WiFi.h>           //for switch off wifi on ESP8266
+#endif
+
 #if HAS_RFM69
   #include "RFMxx.h"
   #include "SensorBase.h"
@@ -190,18 +197,18 @@
 
 #if HAS_OLED
   #include <Adafruit_GFX.h>
-  #include <Adafruit_SSD1306.h>
+  #include "Adafruit_SSD1306.h"
 #endif
 
 #if HAS_LIGHTSENSOR
-  #include <AS_BH1750.h>
+  #include "AS_BH1750.h"
 #endif
 
 /***********************************************************************************************************************/
 /* variables/constants                                                                                                           */
 /***********************************************************************************************************************/
 /* Sensor config */
-#define VERSION                3.0f
+#define VERSION                3.1f
 #define LEDpin                 LED_BUILTIN //auto or set pin of your choice
 uint8_t NODEID;
 float TEMPOFFSET;
@@ -227,14 +234,12 @@ HandleEeprom                   eeprom;
     #define RFM_MISO           PA6         //MISO pin <- RFM69 (MOSI) //only used by soft spi
     #define RFM_MOSI           PA7         //MOSI pin -> RFM69 (MISO) //only used by soft spi
   #endif
-    RFMxx                        rfm(RFM_MOSI, RFM_MISO, RFM_SCK, RFM_SS, SOFT_SPI);
+    RFMxx                      rfm(RFM_MOSI, RFM_MISO, RFM_SCK, RFM_SS, SOFT_SPI);
 
 #endif
 
 /* OLED display */
 #if HAS_OLED
-  #define OLED_ADR             0x3C        //set I2C adress 0x3C or 0x3D
-  #define OLED_ADR_SEC         0x3D
   bool OLED                  = false;      //if display not detected
   Adafruit_SSD1306             display;
 #endif
@@ -265,10 +270,16 @@ static void blink (byte pin, byte n = 3, int del = 50)
   }
 }
 
+
 void dim_display (byte brightness)
 {
-   display.ssd1306_command(SSD1306_SETCONTRAST);
-   display.ssd1306_command(brightness);
+   #if HAS_OLED
+     if (OLED)
+     {
+       display.ssd1306_command(SSD1306_SETCONTRAST);
+       display.ssd1306_command(brightness);
+     }
+   #endif
 }
 
 /***********************************************************************************************************************/
@@ -429,7 +440,7 @@ uint32_t config_load(uint8_t *config_buffer, uint32_t n_buffer)
  *
  * @return          none
  */
-void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy, float temperature, float humidity, float pressure, float raw_temperature, float raw_humidity, float gas, bsec_library_return_t bsec_status)
+void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy, float temperature, float humidity, float pressure, float raw_temperature, float raw_humidity, float gas, bsec_library_return_t bsec_status,float static_iaq, float co2_equivalent, float breath_voc_equivalent)
 {
   #if DEBUG
     unsigned long cycle_start = millis();
@@ -498,6 +509,14 @@ void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy, float temp
   Serial.print(" (");
   Serial.print(iaq_accuracy);
   Serial.print(")");
+  /***** new since BSEC V1.4.7.1: *****/
+  Serial.print("| Static IAQ: ");
+  Serial.print(static_iaq);
+  Serial.print("| CO2e: ");
+  Serial.print(co2_equivalent);
+  Serial.print("| bVOC: ");
+  Serial.println(breath_voc_equivalent);
+  /************************************/
   Serial.print("| Gas: ");
   Serial.print(gas);
   #if VCC_MEASURE
@@ -630,6 +649,11 @@ void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy, float temp
  */
 void setup()
 {
+    #ifdef ESP8266
+      WiFi.forceSleepBegin();   // turn off ESP8266 RF
+      delay(1);                 // give RF section time to shutdown
+    #endif
+    
     return_values_init ret;
 
     /* get bsec version */
@@ -734,7 +758,7 @@ void setup()
             display.println();
             display.display();
           }
-     #endif
+      #endif
       
       /*** edit nodeID ***/
       if (NODEID == 0xFF)
@@ -1023,6 +1047,7 @@ void loop()
 {
   //if BME680 has an error during setup
   blink(LEDpin, 3, 250); //BME680 setup not successful
+  sleep(1000);
 }
 
 /*! @}*/

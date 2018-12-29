@@ -105,9 +105,8 @@ public:
    * Es sind entsprechende Konstanten definiert: BH1750_DEFAULT_I2CADDR  und BH1750_SECOND_I2CADDR.
    * Bei Nichtangabe wird die Standardadresse verwendet. 
    * Um die Alternativadresse zu nutzen, muss der Sensorpin 'ADR' des Chips auf VCC gelegt werden.
-   * NEU: I2C Adresse wird automatisch erkannt. Muss nicht manuell vorgewählt werden.
    */
-  AS_BH1750();
+  AS_BH1750(uint8_t address = BH1750_DEFAULT_I2CADDR);
 
   /**
    * Führt die anfängliche Initialisierung des Sensors.

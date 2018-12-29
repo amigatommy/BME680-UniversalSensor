@@ -84,7 +84,7 @@
 /* local macro definitions */
 /**********************************************************************************************************************/
 
-#define NUM_USED_OUTPUTS 7
+#define NUM_USED_OUTPUTS 8
 
 /**********************************************************************************************************************/
 /* global variable declarations */
@@ -119,7 +119,7 @@ static bsec_library_return_t bme680_bsec_update_subscription(float sample_rate)
     bsec_library_return_t status = BSEC_OK;
     
     /* note: Virtual sensors as desired to be added here */
-    requested_virtual_sensors[0].sensor_id = BSEC_OUTPUT_IAQ_ESTIMATE;
+    requested_virtual_sensors[0].sensor_id = BSEC_OUTPUT_IAQ;
     requested_virtual_sensors[0].sample_rate = sample_rate;
     requested_virtual_sensors[1].sensor_id = BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_TEMPERATURE;
     requested_virtual_sensors[1].sample_rate = sample_rate;
@@ -133,6 +133,8 @@ static bsec_library_return_t bme680_bsec_update_subscription(float sample_rate)
     requested_virtual_sensors[5].sample_rate = sample_rate;
     requested_virtual_sensors[6].sensor_id = BSEC_OUTPUT_RAW_HUMIDITY;
     requested_virtual_sensors[6].sample_rate = sample_rate;
+    requested_virtual_sensors[7].sensor_id = BSEC_OUTPUT_STATIC_IAQ;
+    requested_virtual_sensors[7].sample_rate = sample_rate;
     
     /* Call bsec_update_subscription() to enable/disable the requested virtual sensors */
     status = bsec_update_subscription(requested_virtual_sensors, n_requested_virtual_sensors, required_sensor_settings,
@@ -169,23 +171,24 @@ return_values_init bsec_iot_init(float sample_rate, float temperature_offset, bm
     bme680_g.dev_id = BME680_I2C_ADDR_PRIMARY;
     /* Fixed I2C configuration */
     bme680_g.intf = BME680_I2C_INTF;
+    /* User configurable I2C configuration */
     bme680_g.write = bus_write;
     bme680_g.read = bus_read;
     bme680_g.delay_ms = sleep;
     
     /* Initialize BME680 API */
     ret.bme680_status = bme680_init(&bme680_g);
-	  if (ret.bme680_status != BME680_OK)
-	  {
-	      /*if no success on primary try secondary adress*/
+    if (ret.bme680_status != BME680_OK)
+    {
+        /*if no success on primary try secondary adress*/
 	      bme680_g.dev_id = BME680_I2C_ADDR_SECONDARY;
 	      ret.bme680_status = bme680_init(&bme680_g);
         if (ret.bme680_status != BME680_OK)
         {
             return ret;
         }
-	  }
-        
+    }
+    
     /* Initialize BSEC library */
     ret.bsec_status = bsec_init();
     if (ret.bsec_status != BSEC_OK)
@@ -238,8 +241,8 @@ return_values_init bsec_iot_init(float sample_rate, float temperature_offset, bm
  */
 static void bme680_bsec_trigger_measurement(bsec_bme_settings_t *sensor_settings, sleep_fct sleep)
 {
-	uint16_t meas_period;
-	uint8_t set_required_settings;
+    uint16_t meas_period;
+    uint8_t set_required_settings;
     int8_t bme680_status = BME680_OK;
         
     /* Check if a forced-mode measurement should be triggered now */
@@ -250,24 +253,24 @@ static void bme680_bsec_trigger_measurement(bsec_bme_settings_t *sensor_settings
         bme680_g.tph_sett.os_hum  = sensor_settings->humidity_oversampling;
         bme680_g.tph_sett.os_pres = sensor_settings->pressure_oversampling;
         bme680_g.tph_sett.os_temp = sensor_settings->temperature_oversampling;
-		bme680_g.gas_sett.run_gas = sensor_settings->run_gas;
-		bme680_g.gas_sett.heatr_temp = sensor_settings->heater_temperature; /* degree Celsius */
-		bme680_g.gas_sett.heatr_dur  = sensor_settings->heating_duration; /* milliseconds */
-		
-		/* Select the power mode */
-		/* Must be set before writing the sensor configuration */
-		bme680_g.power_mode = BME680_FORCED_MODE;
-		/* Set the required sensor settings needed */
-		set_required_settings = BME680_OST_SEL | BME680_OSP_SEL | BME680_OSH_SEL | BME680_GAS_SENSOR_SEL;
-		
-		/* Set the desired sensor configuration */
+        bme680_g.gas_sett.run_gas = sensor_settings->run_gas;
+        bme680_g.gas_sett.heatr_temp = sensor_settings->heater_temperature; /* degree Celsius */
+        bme680_g.gas_sett.heatr_dur  = sensor_settings->heating_duration; /* milliseconds */
+        
+        /* Select the power mode */
+        /* Must be set before writing the sensor configuration */
+        bme680_g.power_mode = BME680_FORCED_MODE;
+        /* Set the required sensor settings needed */
+        set_required_settings = BME680_OST_SEL | BME680_OSP_SEL | BME680_OSH_SEL | BME680_GAS_SENSOR_SEL;
+        
+        /* Set the desired sensor configuration */
         bme680_status = bme680_set_sensor_settings(set_required_settings, &bme680_g);
              
         /* Set power mode as forced mode and trigger forced mode measurement */
         bme680_status = bme680_set_sensor_mode(&bme680_g);
         
-		/* Get the total measurement duration so as to sleep or wait till the measurement is complete */
-		bme680_get_profile_dur(&meas_period, &bme680_g);
+        /* Get the total measurement duration so as to sleep or wait till the measurement is complete */
+        bme680_get_profile_dur(&meas_period, &bme680_g);
         
         /* Delay till the measurement is ready. Timestamp resolution in ms */
         sleep((uint32_t)meas_period);
@@ -323,7 +326,11 @@ static void bme680_bsec_read_data(int64_t time_stamp_trigger, bsec_input_t *inpu
             {
                 /* Place temperature sample into input struct */
                 inputs[*num_bsec_inputs].sensor_id = BSEC_INPUT_TEMPERATURE;
-                inputs[*num_bsec_inputs].signal = data.temperature / 100.0f;
+                #ifdef BME680_FLOAT_POINT_COMPENSATION
+                    inputs[*num_bsec_inputs].signal = data.temperature;
+                #else
+                    inputs[*num_bsec_inputs].signal = data.temperature / 100.0f;
+                #endif
                 inputs[*num_bsec_inputs].time_stamp = time_stamp_trigger;
                 (*num_bsec_inputs)++;
                 
@@ -339,7 +346,11 @@ static void bme680_bsec_read_data(int64_t time_stamp_trigger, bsec_input_t *inpu
             {
                 /* Place humidity sample into input struct */
                 inputs[*num_bsec_inputs].sensor_id = BSEC_INPUT_HUMIDITY;
-                inputs[*num_bsec_inputs].signal = data.humidity / 1000.0f;
+                #ifdef BME680_FLOAT_POINT_COMPENSATION
+                    inputs[*num_bsec_inputs].signal = data.humidity;
+                #else
+                    inputs[*num_bsec_inputs].signal = data.humidity / 1000.0f;
+                #endif  
                 inputs[*num_bsec_inputs].time_stamp = time_stamp_trigger;
                 (*num_bsec_inputs)++;
             }
@@ -387,6 +398,16 @@ static void bme680_bsec_process_data(bsec_input_t *bsec_inputs, uint8_t num_bsec
     float humidity = 0.0f;
     float raw_humidity = 0.0f;
     float raw_gas = 0.0f;
+    float static_iaq = 0.0f;
+    uint8_t static_iaq_accuracy = 0;
+    float co2_equivalent = 0.0f;
+    uint8_t co2_accuracy = 0;
+    float breath_voc_equivalent = 0.0f;
+    uint8_t breath_voc_accuracy = 0;
+    float comp_gas_value = 0.0f;
+    uint8_t comp_gas_accuracy = 0;
+    float gas_percentage = 0.0f;
+    uint8_t gas_percentage_acccuracy = 0;
     
     /* Check if something should be processed by BSEC */
     if (num_bsec_inputs > 0)
@@ -407,9 +428,21 @@ static void bme680_bsec_process_data(bsec_input_t *bsec_inputs, uint8_t num_bsec
         {
             switch (bsec_outputs[index].sensor_id)
             {
-                case BSEC_OUTPUT_IAQ_ESTIMATE:
+                case BSEC_OUTPUT_IAQ:
                     iaq = bsec_outputs[index].signal;
                     iaq_accuracy = bsec_outputs[index].accuracy;
+                    break;
+                case BSEC_OUTPUT_STATIC_IAQ:
+                    static_iaq = bsec_outputs[index].signal;
+                    static_iaq_accuracy = bsec_outputs[index].accuracy;
+                    break;
+                case BSEC_OUTPUT_CO2_EQUIVALENT:
+                    co2_equivalent = bsec_outputs[index].signal;
+                    co2_accuracy = bsec_outputs[index].accuracy;
+                    break;
+                case BSEC_OUTPUT_BREATH_VOC_EQUIVALENT:
+                    breath_voc_equivalent = bsec_outputs[index].signal;
+                    breath_voc_accuracy = bsec_outputs[index].accuracy;
                     break;
                 case BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_TEMPERATURE:
                     temp = bsec_outputs[index].signal;
@@ -429,6 +462,14 @@ static void bme680_bsec_process_data(bsec_input_t *bsec_inputs, uint8_t num_bsec
                 case BSEC_OUTPUT_RAW_HUMIDITY:
                     raw_humidity = bsec_outputs[index].signal;
                     break;
+                case BSEC_OUTPUT_COMPENSATED_GAS:
+                    comp_gas_value = bsec_outputs[index].signal;
+                    comp_gas_accuracy = bsec_outputs[index].accuracy;
+                    break;
+                case BSEC_OUTPUT_GAS_PERCENTAGE:
+                    gas_percentage = bsec_outputs[index].signal;
+                    gas_percentage_acccuracy = bsec_outputs[index].accuracy;
+                    break;
                 default:
                     continue;
             }
@@ -439,7 +480,7 @@ static void bme680_bsec_process_data(bsec_input_t *bsec_inputs, uint8_t num_bsec
         
         /* Pass the extracted outputs to the user provided output_ready() function. */
         output_ready(timestamp, iaq, iaq_accuracy, temp, humidity, raw_pressure, raw_temp, 
-            raw_humidity, raw_gas, bsec_status);
+            raw_humidity, raw_gas, bsec_status, static_iaq, co2_equivalent, breath_voc_equivalent);
     }
 }
 
@@ -471,8 +512,8 @@ void bsec_iot_loop(sleep_fct sleep, get_timestamp_us_fct get_timestamp_us, outpu
     bsec_bme_settings_t sensor_settings;
     
     /* Save state variables */
-    uint8_t bsec_state[BSEC_MAX_PROPERTY_BLOB_SIZE];
-    uint8_t work_buffer[BSEC_MAX_PROPERTY_BLOB_SIZE];
+    uint8_t bsec_state[BSEC_MAX_STATE_BLOB_SIZE];
+    uint8_t work_buffer[BSEC_MAX_STATE_BLOB_SIZE];
     uint32_t bsec_state_len = 0;
     uint32_t n_samples = 0;
     

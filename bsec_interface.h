@@ -111,7 +111,7 @@
  *
  * 
  * - Before shutting down the system, the current state of BSEC can be retrieved and can then be used during 
- *   re-initalization to continue processing.
+ *   re-initialization to continue processing.
  *   
  * | Steps                                  | Function          |
  * |----------------------------------------|-------------------|
@@ -129,7 +129,7 @@
  *    performance of the gas sensor outputs.
  * 
  * @note BSEC library consists of adaptive algorithms which models the gas sensor which improves its performance over 
- *       the time. These will be lost if library is initialised due to system reset. In order to avoid this situation 
+ *       the time. These will be lost if library is initialized due to system reset. In order to avoid this situation 
  *       library state shall be stored in non volatile memory so that it can be loaded after system reset.
  *
  * 
@@ -236,14 +236,14 @@ bsec_library_return_t bsec_init(void);
     bsec_sensor_configuration_t requested_virtual_sensors[3];
     uint8_t n_requested_virtual_sensors = 3;
  
-    requested_virtual_sensors[0].sensor_id = BSEC_OUTPUT_IAQ_ESTIMATE;
+    requested_virtual_sensors[0].sensor_id = BSEC_OUTPUT_IAQ;
     requested_virtual_sensors[0].sample_rate = BSEC_SAMPLE_RATE_ULP; 
     requested_virtual_sensors[1].sensor_id = BSEC_OUTPUT_RAW_TEMPERATURE;
     requested_virtual_sensors[1].sample_rate = BSEC_SAMPLE_RATE_ULP; 
     requested_virtual_sensors[2].sensor_id = BSEC_OUTPUT_RAW_PRESSURE;
     requested_virtual_sensors[2].sample_rate = BSEC_SAMPLE_RATE_DISABLED; 
     
-    // Allocate a struct for the returned phyisical sensor settings
+    // Allocate a struct for the returned physical sensor settings
     bsec_sensor_configuration_t required_sensor_settings[BSEC_MAX_PHYSICAL_SENSOR];
     uint8_t  n_required_sensor_settings = BSEC_MAX_PHYSICAL_SENSOR;
  
@@ -265,7 +265,7 @@ bsec_library_return_t bsec_update_subscription(const bsec_sensor_configuration_t
  * - The samples of all library inputs must be passed with unique identifiers representing the input signals from 
  *   physical sensors where the order of these inputs can be chosen arbitrary. However, all input have to be provided 
  *   within the same time period as they are read. A sequential provision to the library might result in undefined 
- *   behaviour.
+ *   behavior.
  * - The samples of all library outputs are returned with unique identifiers corresponding to the output signals of 
  *   virtual sensors where the order of the returned outputs may be arbitrary.
  * - The samples of all input as well as output signals of physical as well as virtual sensors use the same 
@@ -319,14 +319,14 @@ bsec_library_return_t bsec_update_subscription(const bsec_sensor_configuration_t
     // Invoke main processing BSEC function
     status = bsec_do_steps( input, n_input, output, &n_output );
 
-    // Iterature through the BSEC output data, if the call succeeded
+    // Iterate through the BSEC output data, if the call succeeded
     if(status == BSEC_OK)
     {
         for(int i = 0; i < n_output; i++)
         {   
             switch(output[i].sensor_id)
             {
-                case BSEC_OUTPUT_IAQ_ESTIMATE:
+                case BSEC_OUTPUT_IAQ:
                     // Retrieve the IAQ results from output[i].signal
                     // and do something with the data
                     break;
@@ -358,7 +358,7 @@ bsec_library_return_t bsec_do_steps(const bsec_input_t * const inputs, const uin
  *
   \code{.c}
     // Example // 
-    bsec_reset_output(BSEC_OUTPUT_IAQ_ESTIMATE);
+    bsec_reset_output(BSEC_OUTPUT_IAQ);
 
   \endcode
  */
@@ -494,7 +494,7 @@ bsec_library_return_t bsec_get_configuration(const uint8_t config_id, uint8_t * 
  * bsec_get_state(). This allows a restart of the processing after a reboot of the system by calling bsec_set_state().
  * 
  * @note A work buffer with sufficient size is required and has to be provided by the function caller to decompose the 
- * serialization and apply it to the library and its modules. Please use #BSEC_MAX_PROPERTY_BLOB_SIZE for allotting the 
+ * serialization and apply it to the library and its modules. Please use #BSEC_MAX_STATE_BLOB_SIZE for allotting the 
  * required size.
  * 
  *
@@ -512,11 +512,11 @@ bsec_library_return_t bsec_get_configuration(const uint8_t config_id, uint8_t * 
     // Example //
  
     // Allocate variables
-    uint8_t serialized_state[BSEC_MAX_PROPERTY_BLOB_SIZE];
-    uint32_t n_serialized_state_max=BSEC_MAX_PROPERTY_BLOB_SIZE;
-    uint32_t  n_serialized_state = BSEC_MAX_PROPERTY_BLOB_SIZE;
-    uint8_t work_buffer_state[BSEC_MAX_PROPERTY_BLOB_SIZE];
-    uint32_t  n_work_buffer_size = BSEC_MAX_PROPERTY_BLOB_SIZE;
+    uint8_t serialized_state[BSEC_MAX_STATE_BLOB_SIZE];
+    uint32_t n_serialized_state_max = BSEC_MAX_STATE_BLOB_SIZE;
+    uint32_t  n_serialized_state = BSEC_MAX_STATE_BLOB_SIZE;
+    uint8_t work_buffer_state[BSEC_MAX_STATE_BLOB_SIZE];
+    uint32_t  n_work_buffer_size = BSEC_MAX_STATE_BLOB_SIZE;
     
     // Algorithm state is stored in 'serialized_state'
     bsec_get_state(0, serialized_state, n_serialized_state_max, work_buffer_state, n_work_buffer_size, &n_serialized_state);

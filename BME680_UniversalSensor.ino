@@ -468,11 +468,22 @@ void output_ready(int64_t timestamp, float iaq, uint8_t iaq_accuracy, float temp
       #if HAS_OLED
         if (OLED)
         {
-          /* display dimm, if lightlevel < 10lux */
-          if (lux < 10)
+          /* dimming the display to save OLED */
+          if (lux < 10) {
             dim_display(0);
-          else
+          }
+          else if (lux > 9 && lux < 50) {
+            dim_display(0x20);
+          }
+          else if (lux > 49 && lux < 100) {
+            dim_display(0x40);
+          }
+          else if (lux > 99 && lux < 500) {
+            dim_display(0x60);
+          }
+          else {
             dim_display(0x80);
+          }
         }
       #endif
     }

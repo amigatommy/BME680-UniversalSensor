@@ -84,7 +84,7 @@
 /* local macro definitions */
 /**********************************************************************************************************************/
 
-#define NUM_USED_OUTPUTS 8
+#define NUM_USED_OUTPUTS 10
 
 /**********************************************************************************************************************/
 /* global variable declarations */
@@ -135,6 +135,11 @@ static bsec_library_return_t bme680_bsec_update_subscription(float sample_rate)
     requested_virtual_sensors[6].sample_rate = sample_rate;
     requested_virtual_sensors[7].sensor_id = BSEC_OUTPUT_STATIC_IAQ;
     requested_virtual_sensors[7].sample_rate = sample_rate;
+    requested_virtual_sensors[8].sensor_id = BSEC_OUTPUT_CO2_EQUIVALENT;
+    requested_virtual_sensors[8].sample_rate = sample_rate;
+    requested_virtual_sensors[9].sensor_id = BSEC_OUTPUT_BREATH_VOC_EQUIVALENT;
+    requested_virtual_sensors[9].sample_rate = sample_rate;
+    
     
     /* Call bsec_update_subscription() to enable/disable the requested virtual sensors */
     status = bsec_update_subscription(requested_virtual_sensors, n_requested_virtual_sensors, required_sensor_settings,
@@ -563,4 +568,3 @@ void bsec_iot_loop(sleep_fct sleep, get_timestamp_us_fct get_timestamp_us, outpu
 }
 
 /*! @}*/
-

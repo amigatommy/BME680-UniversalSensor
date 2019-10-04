@@ -1,36 +1,37 @@
 
- UniversalSensor V3.1
+ UniversalSensor V3.3
  
  
  benötigte Komponenten:
- NodeMCU/WEMOS D1 mini (ESP8266), NanoLGW oder Maple mini/BluePill (STM32F1)
+ NodeMCU/WEMOS D1 mini, NanoLGW (ESP8266) oder Maple mini/BluePill (STM32F1)
  BME680 Sensor
+ Wenn MQTT ausgewählt wird, muß zwingend ein ESP8266 Board verwendet werden, die anderen haben kein WiFi !
  
  optional:
- RFM69CW 
+ RFM69CW
  128x64 OLED Display
  BH1750 Lichtsensor
  
  ############################################
  # Einbinden der BSEC Software für ESP8266: #
- # Stand: 27.12.2018                        #
- # ESP8266 Paket V2.5.0 beta2               #
- # BSEC V1.4.7.1                            #
+ # Stand: 15.09.2019                        #
+ # ESP8266 Paket V2.5.2                     #
+ # BSEC V1.4.7.4                            #
  ############################################
  
- 1. Die "libalgobsec.a" muss nach "\Users\[Benutzername]\AppData\Local\Arduino15\packages\esp8266\hardware\esp8266\2.5.0\tools\sdk\lib\ kopiert werden !
+ 1. Die "libalgobsec.a" muss nach "\Users\[Benutzername]\AppData\Local\Arduino15\packages\esp8266\hardware\esp8266\2.5.2\tools\sdk\lib\ kopiert werden !
     Das ist die "precompiled Lib" von Bosch Sensortec.
  
- 2. Die Linker Datei "hardware\esp8266\2.5.0\tools\sdk\ld\eagle.app.v6.common.ld" muß angepasst werden:
+ 2. Die Linker Datei "hardware\esp8266\2.5.2\tools\sdk\ld\eagle.app.v6.common.ld" muß angepasst werden:
     nach der Zeile "*libm.a:(.literal .text .literal.* .text.*)" , die Zeile "*libalgobsec.a:(.literal .text .literal.* .text.*)" einfügen.
  
- 3. Als letztes muss noch ein Parameter in der Datei "hardware\esp8266\2.5.0\platform.txt" hinzugefügt werden:
+ 3. Als letztes muss noch ein Parameter in der Datei "hardware\esp8266\2.5.2\platform.txt" hinzugefügt werden:
     am Ende der Zeile "compiler.c.elf.libs= ... -lm -lgcc" folgendes anfügen " -lalgobsec" .
  
  ############################################
  # Einbinden der BSEC Software für STM32F1: #
- # Stand: 27.12.2018                        #
- # BSEC V1.4.7.1                            #
+ # Stand: 15.09.2019                        #
+ # BSEC V1.4.7.4                            #
  ############################################
 
  1. den Ordner aus dem heruntergeladenen Archiv "Arduino_STM32-master" nach C:\Users\<NAME>\Documents\Arduino\hardware\ kopieren.
@@ -63,7 +64,8 @@
  die Unterstützung des SH1106 OLED Controllers. Es funktionieren offensichtlich beide Controller (SSD1306 und SH1106)
  mit dieser Änderung ! Ich habe es mit einem 1.3" Display (128x64, SH1106) und einem 0.96" Display (128x64, SSD1306) getestet.
  
- Die Datei "bsec_integration.c" habe ich auch geändert (automatische Erkennung der I2C Adresse), bei Update auf neue BSEC Version wichtig !
+ Die Datei "bsec_integration.c" habe ich auch geändert (automatische Erkennung der I2C Adresse, Einbindung der neuen Messwerte CO2 und VOC),
+ bei Update auf neue BSEC Version wichtig !
  
  ###########################################
 

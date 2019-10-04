@@ -166,7 +166,7 @@ void HandleEeprom::SaveSettings(uint8_t m_nodeid, float m_altitude, float m_temp
 void HandleEeprom::RestoreDefaults()
 {
   uint64_t Start = millis();
-  Serial.println("Do you want to delete settings in EEPROM (Y/N)?");
+  Serial.println("Do you want to delete and edit settings in EEPROM (Y/N)?");
   do {} while(!Serial.available() && millis() - Start < 5000);
   char input = Serial.read();
   if (input == 'Y' || input == 'y')
@@ -187,7 +187,7 @@ void HandleEeprom::RestoreDefaults()
   }
   else
   {
-    Serial.println("Not deleted.");
+    Serial.println("Nothing changed.");
     Serial.println();
   }
 }
@@ -224,6 +224,10 @@ uint8_t HandleEeprom::EditNodeID(uint8_t m_nodeid)
           Serial.print("0");                            
         Serial.print(result, HEX);
         Serial.println(")");
+        
+        /*clear serial input buffer*/
+        if (Serial.available())
+        Serial.read();
         
         Serial.println("Save permanently (Y/N)?");
         do {} while(!Serial.available());
@@ -276,6 +280,11 @@ float HandleEeprom::EditAltitude(float m_altitude)
         Serial.print(result, 1);
         Serial.println("m");
         Serial.println("Save permanently (Y/N)?");
+
+        /*clear serial input buffer*/
+        if (Serial.available())
+        Serial.read();
+        
         do {} while(!Serial.available());
         char input = Serial.read();
         if (input == 'Y' || input == 'y')
@@ -326,6 +335,11 @@ float HandleEeprom::EditTempOffset(float m_tempoffset)
         Serial.print(result, 1);
         Serial.println(" degrees celsius");
         Serial.println("Save permanently (Y/N)?");
+
+        /*clear serial input buffer*/
+        if (Serial.available())
+        Serial.read();
+        
         do {} while(!Serial.available());
         char input = Serial.read();
         if (input == 'Y' || input == 'y')

@@ -170,36 +170,38 @@ Adafruit_GFX(SSD1306_LCDWIDTH, SSD1306_LCDHEIGHT) {
 bool Adafruit_SSD1306::begin(uint8_t vccstate, bool reset) {
 
   _vccstate = vccstate;
-
+  bool oled = false;
+  
   // set pin directions
   if (sid != -1){
     pinMode(dc, OUTPUT);
     pinMode(cs, OUTPUT);
-#ifdef HAVE_PORTREG
-    csport      = portOutputRegister(digitalPinToPort(cs));
-    cspinmask   = digitalPinToBitMask(cs);
-    dcport      = portOutputRegister(digitalPinToPort(dc));
-    dcpinmask   = digitalPinToBitMask(dc);
-#endif
+    #ifdef HAVE_PORTREG
+      csport      = portOutputRegister(digitalPinToPort(cs));
+      cspinmask   = digitalPinToBitMask(cs);
+      dcport      = portOutputRegister(digitalPinToPort(dc));
+      dcpinmask   = digitalPinToBitMask(dc);
+    #endif
     if (!hwSPI){
       // set pins for software-SPI
       pinMode(sid, OUTPUT);
       pinMode(sclk, OUTPUT);
-#ifdef HAVE_PORTREG
-      clkport     = portOutputRegister(digitalPinToPort(sclk));
-      clkpinmask  = digitalPinToBitMask(sclk);
-      mosiport    = portOutputRegister(digitalPinToPort(sid));
-      mosipinmask = digitalPinToBitMask(sid);
-#endif
-      }
+      #ifdef HAVE_PORTREG
+        clkport     = portOutputRegister(digitalPinToPort(sclk));
+        clkpinmask  = digitalPinToBitMask(sclk);
+        mosiport    = portOutputRegister(digitalPinToPort(sid));
+        mosipinmask = digitalPinToBitMask(sid);
+      #endif
+    }
     if (hwSPI){
       SPI.begin();
-#ifdef SPI_HAS_TRANSACTION
-      SPI.beginTransaction(SPISettings(8000000, MSBFIRST, SPI_MODE0));
-#else
-      SPI.setClockDivider (4);
-#endif
+      #ifdef SPI_HAS_TRANSACTION
+        SPI.beginTransaction(SPISettings(8000000, MSBFIRST, SPI_MODE0));
+      #else
+        SPI.setClockDivider (4);
+      #endif
     }
+    oled = true;  //  oled present
   }
   else
   {
@@ -217,7 +219,7 @@ bool Adafruit_SSD1306::begin(uint8_t vccstate, bool reset) {
     
     //autodetect I2C address
     Serial.print("OLED init ... ");
-    bool oled = false;
+
     Wire.beginTransmission(SSD1306_I2C_ADDRESS); //first try primary adress
     if (Wire.endTransmission() == 0)
     {
@@ -239,8 +241,6 @@ bool Adafruit_SSD1306::begin(uint8_t vccstate, bool reset) {
     }
     if (!oled) {
       Serial.println("not found");
-      Serial.println();
-      return false;
     }
     Serial.println();
   }
@@ -287,7 +287,7 @@ bool Adafruit_SSD1306::begin(uint8_t vccstate, bool reset) {
   ssd1306_command(SSD1306_SETCONTRAST);                   // 0x81
   ssd1306_command(0x8F);
 
-#elif defined SSD1306_128_64
+ #elif defined SSD1306_128_64
   ssd1306_command(SSD1306_SETCOMPINS);                    // 0xDA
   ssd1306_command(0x12);
   ssd1306_command(SSD1306_SETCONTRAST);                   // 0x81
@@ -296,7 +296,7 @@ bool Adafruit_SSD1306::begin(uint8_t vccstate, bool reset) {
   else
     { ssd1306_command(0xCF); }
 
-#elif defined SSD1306_96_16
+ #elif defined SSD1306_96_16
   ssd1306_command(SSD1306_SETCOMPINS);                    // 0xDA
   ssd1306_command(0x2);   //ada x12
   ssd1306_command(SSD1306_SETCONTRAST);                   // 0x81
@@ -304,8 +304,7 @@ bool Adafruit_SSD1306::begin(uint8_t vccstate, bool reset) {
     { ssd1306_command(0x10); }
   else
     { ssd1306_command(0xAF); }
-
-#endif
+ #endif
 
   ssd1306_command(SSD1306_SETPRECHARGE);                  // 0xd9
   if (vccstate == SSD1306_EXTERNALVCC)
@@ -321,9 +320,11 @@ bool Adafruit_SSD1306::begin(uint8_t vccstate, bool reset) {
 
   ssd1306_command(SSD1306_DISPLAYON);//--turn on oled panel
 
-  return true;
+  if (oled) 
+    { return true; }
+  else 
+    { return false; }
 }
-
 
 void Adafruit_SSD1306::invertDisplay(uint8_t i) {
   if (i) {

@@ -1,16 +1,61 @@
 
- UniversalSensor V3.3
+ UniversalSensor V3.4
  
  
  benötigte Komponenten:
  NodeMCU/WEMOS D1 mini, NanoLGW (ESP8266) oder Maple mini/BluePill (STM32F1)
  BME680 Sensor
- Wenn MQTT ausgewählt wird, muß zwingend ein ESP8266 Board verwendet werden, die anderen haben kein WiFi !
  
  optional:
  RFM69CW
  128x64 OLED Display
  BH1750 Lichtsensor
+ 
+ MQTT:
+ -----
+ Wenn MQTT ausgewählt wird, muß zwingend ein ESP8266 Board verwendet werden, die anderen haben kein WiFi !
+ Die Benutzernamen und Passwörter für wifi und MQTT werden in die Datei secrets.h eingetragen !
+ Alle anderen Sensoreinstellungen kann man in der config.h bearbeiten.
+ Die MQTT Topics sind wie folgt aufgebaut:
+ 
+ mqtt_clientid/mqtt_room/temperature
+ mqtt_clientid/mqtt_room/pressure
+ mqtt_clientid/mqtt_room/humidity
+ mqtt_clientid/mqtt_room/iaq
+ mqtt_clientid/mqtt_room/iaq_accuracy
+ mqtt_clientid/mqtt_room/co2
+ mqtt_clientid/mqtt_room/voc
+ mqtt_clientid/mqtt_room/light
+ mqtt_clientid/mqtt_room/rssi
+ 
+ mqtt_client ist z.B.: UniversalSensor-01
+ mqtt_room ist z.B.  : Wohnzimmer
+ das ergibt dann folgende MQTT Topics:
+ 
+ UniversalSensor-01/Wohnzimmer/temperature
+ UniversalSensor-01/Wohnzimmer/pressure
+ UniversalSensor-01/Wohnzimmer/humidity
+ UniversalSensor-01/Wohnzimmer/iaq
+ UniversalSensor-01/Wohnzimmer/iaq_accuracy
+ UniversalSensor-01/Wohnzimmer/co2
+ UniversalSensor-01/Wohnzimmer/voc
+ UniversalSensor-01/Wohnzimmer/light
+ UniversalSensor-01/Wohnzimmer/rssi
+ 
+ MOMEKIT:
+ --------
+ Wenn homekit aktiviert wird, wird der iaq Wert als Wert von 1 - 5 ausgegeben !
+ Die Bedeutung ist:
+ 
+ 1: exzellent
+ 2: gut
+ 3: ausreichend
+ 4: schlecht
+ 5: unzureichend 
+ 
+ Damit kann man über Homebridge (auf dem RaspberryPi z.B.) seine Sensoren in Homekit einbinden.
+ Das funktioniert sehr gut. 
+ 
  
  ############################################
  # Einbinden der BSEC Software für ESP8266: #
